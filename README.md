@@ -22,7 +22,9 @@ The application uses a vendor-neutral `RecruitingOpsPort`. The hackathon impleme
 src/domain/       Strict schemas, inferred types, and vendor-neutral ports
 src/agents/       Inspectable red/white learning policies
 src/engine/       Coordinator, reducer, deterministic fakes, and replay logic
-src/adapters/     Pomerium, Zero, and local outbound implementations
+src/adapters/     Pomerium and Zero adapters; local outbound implementation boundary
+src/runtime/      Episode ownership and buffered canonical event streams
+src/server/       HTTP episode API, static UI hosting, snapshots, and SSE
 fixtures/         Synthetic recruiting contract data
 public/           Event-driven 8-bit renderer and original sprites
 tests/            Contract, adapter, configuration, and composition tests
@@ -34,6 +36,7 @@ compose.yaml      Recruiting service topology and Pomerium data plane
 ```bash
 npm ci
 npm run demo
+npm run stream
 npm run typecheck
 npm run lint
 npm test
@@ -45,6 +48,12 @@ docker compose config
 the default browser, and automatically replays the complete sponsor-safe story. Set
 `DEMO_NO_OPEN=1` when running it in CI or another headless environment.
 
+`npm run stream` starts the real coordinator with deterministic fake adapters and serves the UI at
+`http://127.0.0.1:8080/?mode=live`. The browser creates an episode, receives all canonical engine
+events over SSE, and can reconnect using the buffered event history.
+The local runtime allows one active episode, retains at most 20 completed/running episodes for 15
+minutes, and restores the renderer from an authoritative snapshot if the browser observes a gap.
+
 To connect the Pomerium Zero data plane, follow
 [`docs/runbooks/pomerium-zero-bootstrap.md`](docs/runbooks/pomerium-zero-bootstrap.md).
 
@@ -52,8 +61,9 @@ To connect the Pomerium Zero data plane, follow
 
 - [x] Recruiting concept and architecture locked
 - [x] Vendor-neutral recruiting contracts and golden event fixture
-- [ ] Complete headless agent loop
+- [x] Complete deterministic headless agent loop
+- [x] Stream the real coordinator into the 8-bit renderer over SSE
 - [ ] Complete Pomerium same-tool deny/allow proof
 - [ ] Complete Zero live capability invocation
-- [ ] Wire outbound pipeline and 8-bit renderer
+- [ ] Complete the local outbound recruiting adapter
 - [ ] Record and submit the three-minute demo
