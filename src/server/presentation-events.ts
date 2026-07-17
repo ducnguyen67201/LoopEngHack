@@ -86,10 +86,11 @@ export class PresentationEventHub implements EventSink {
     );
   }
 
-  publishClosureRequested(conversationId: string): void {
+  publishClosureRequested(conversationId: string, pipelineComplete = true): void {
     this.enqueue(
       this.synthetic('loop_closure_requested', 'learn', 'started', {
         conversationId,
+        pipelineComplete,
       }),
     );
   }
@@ -170,7 +171,9 @@ export class PresentationEventHub implements EventSink {
         : kind === 'error'
           ? `Learning loop stopped safely: ${String(payload.reason)}`
           : kind === 'loop_closure_requested'
-            ? 'Learning finished; waiting for the operator phone response'
+            ? payload.pipelineComplete === false
+              ? 'Call started; waiting for the operator phone response before the pipeline runs'
+              : 'Learning finished; waiting for the operator phone response'
             : `Episode evaluated at readiness ${String(payload.readinessScore)}`;
     return {
       schemaVersion: 1,

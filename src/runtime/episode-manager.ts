@@ -223,7 +223,7 @@ export class EpisodeManager {
             closedAt: null,
           };
           record.status = 'awaiting_human';
-          hub.publishClosureRequested(receipt.conversationId);
+          hub.publishClosureRequested(receipt.conversationId, false);
           if (this.closurePort?.waitForSpokenResponse === undefined) {
             throw new Error('phone-first demo requires authenticated transcript polling');
           }
