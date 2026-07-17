@@ -161,6 +161,69 @@ describe('arena HTTP and SSE runtime', () => {
     });
   });
 
+  it('starts a real phone-closure loop from the loopback-only call UI', async () => {
+    const memoryDirectory = await mkdtemp(join(tmpdir(), 'loop-live-call-ui-test-'));
+    const config = readConfig({
+      SERVICE_ROLE: 'arena',
+      DEMO_MODE: 'fake',
+      DEMO_STEP_DELAY_MS: '0',
+      LOOP_MEMORY_DIRECTORY: memoryDirectory,
+      ELEVENLABS_LOOP_CLOSURE_ENABLED: 'true',
+      INTERNAL_AGENT_TOKEN: 'operator-token-at-least-24-characters',
+      ELEVENLABS_API_KEY: 'elevenlabs-api-key-for-contract-tests',
+      ELEVENLABS_AGENT_ID: 'agent-phone-test',
+      ELEVENLABS_PHONE_NUMBER_ID: 'phone-number-test',
+      ELEVENLABS_TO_NUMBER: '+14155550123',
+    });
+    const closurePort = new FakeLoopClosurePort({
+      conversationId: 'conversation-live-call-ui',
+      callSid: 'call-live-call-ui',
+    });
+    const manager = new EpisodeManager(config, { closurePort });
+    const { app } = createArenaApp(config, manager);
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('server address missing');
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const invalid = await fetch(`${baseUrl}/api/demo/phone-call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toNumber: 'not-a-phone-number' }),
+    });
+    expect(invalid.status).toBe(400);
+    expect(closurePort.contexts).toHaveLength(0);
+
+    const started = await fetch(`${baseUrl}/api/demo/phone-call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toNumber: '+14165550999' }),
+    });
+    expect(started.status).toBe(202);
+    const body: unknown = await started.json();
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('episodeId' in body) ||
+      typeof body.episodeId !== 'string' ||
+      !('liveUrl' in body) ||
+      typeof body.liveUrl !== 'string'
+    ) {
+      throw new Error('phone call response did not include an episode ID');
+    }
+    const episodeId = body.episodeId;
+    expect(body.liveUrl).toMatch(/^\/\?mode=live&episode=loop-/);
+    await manager.wait(episodeId);
+    expect(closurePort.contexts).toEqual([
+      expect.objectContaining({
+        loopId: episodeId,
+        toNumber: '+14165550999',
+      }),
+    ]);
+  });
+
   it('waits for a signed ElevenLabs spoken response before closing the loop', async () => {
     const memoryDirectory = await mkdtemp(join(tmpdir(), 'loop-phone-closure-test-'));
     const webhookSecret = 'elevenlabs-webhook-secret-for-tests';

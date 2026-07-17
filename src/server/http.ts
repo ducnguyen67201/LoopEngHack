@@ -45,6 +45,15 @@ const manualVoiceAttackSchema = z
   })
   .strict();
 
+const localPhoneCallSchema = z
+  .object({
+    toNumber: z
+      .string()
+      .trim()
+      .regex(/^\+[1-9]\d{7,14}$/, 'must be an E.164 phone number'),
+  })
+  .strict();
+
 export interface HttpAppOptions {
   runtime?: EpisodeRuntime;
   publicDirectory?: string;
@@ -159,6 +168,31 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
         eventsUrl: `/api/episodes/${encodedId}/events`,
         liveUrl: `/?mode=live&episode=${encodedId}`,
         uiUrl: `/?mode=live&episode=${encodedId}`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/demo/phone-call', (request, response, next) => {
+    try {
+      if (
+        config.DEMO_MODE !== 'fake' ||
+        !config.ELEVENLABS_LOOP_CLOSURE_ENABLED ||
+        !isLoopbackRequest(request)
+      ) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const input = localPhoneCallSchema.parse(request.body ?? {});
+      const snapshot = manager.start(undefined, {}, input.toNumber);
+      const encodedId = encodeURIComponent(snapshot.id);
+      response.status(202).json({
+        ...snapshot,
+        episodeId: snapshot.id,
+        statusUrl: `/api/episodes/${encodedId}`,
+        eventsUrl: `/api/episodes/${encodedId}/events`,
+        liveUrl: `/?mode=live&episode=${encodedId}`,
       });
     } catch (error) {
       next(error);
@@ -373,6 +407,15 @@ function constantTimeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left, 'utf8');
   const rightBuffer = Buffer.from(right, 'utf8');
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isLoopbackRequest(request: Request): boolean {
+  const address = request.socket.remoteAddress;
+  if (address !== '127.0.0.1' && address !== '::1' && address !== '::ffff:127.0.0.1') {
+    return false;
+  }
+  const fetchSite = request.get('Sec-Fetch-Site');
+  return fetchSite === undefined || fetchSite === 'same-origin' || fetchSite === 'none';
 }
 
 function readLegacyLastSequence(request: Request): number {

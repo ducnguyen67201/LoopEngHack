@@ -937,8 +937,10 @@ async function bootstrap() {
   const speedSelect = requireElement('speed-select');
   const proofDialog = requireElement('proof-dialog');
   const callDialog = requireElement('call-dialog');
+  const callPhoneNumber = requireElement('call-phone-number');
   const callTranscript = requireElement('manual-call-transcript');
   const callFeedback = requireElement('call-feedback');
+  const placeCallButton = requireElement('place-call-button');
   const submitCallButton = requireElement('submit-call-button');
 
   const handlers = {
@@ -1049,6 +1051,35 @@ async function bootstrap() {
   requireElement('close-proof-button').addEventListener('click', () => proofDialog.close());
   requireElement('open-call-button').addEventListener('click', () => callDialog.showModal());
   requireElement('close-call-button').addEventListener('click', () => callDialog.close());
+  placeCallButton.addEventListener('click', async () => {
+    const toNumber = callPhoneNumber.value.trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(toNumber)) {
+      callFeedback.dataset.state = 'error';
+      callFeedback.textContent = 'Use E.164 format, for example +14164732994.';
+      callPhoneNumber.focus();
+      return;
+    }
+    placeCallButton.disabled = true;
+    callFeedback.dataset.state = '';
+    callFeedback.textContent = 'Starting a fresh loop; your phone will ring when it converges…';
+    try {
+      const response = await fetch('/api/demo/phone-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toNumber }),
+      });
+      const body = await response.json();
+      if (!response.ok || typeof body.liveUrl !== 'string') {
+        throw new Error(`Phone call start failed with ${response.status}`);
+      }
+      globalThis.location.assign(body.liveUrl);
+    } catch (error) {
+      callFeedback.dataset.state = 'error';
+      callFeedback.textContent =
+        error instanceof Error ? error.message : 'Phone call start failed.';
+      placeCallButton.disabled = false;
+    }
+  });
   for (const preset of document.querySelectorAll('[data-call-preset]')) {
     preset.addEventListener('click', () => {
       callTranscript.value = preset.dataset.callPreset ?? callTranscript.value;

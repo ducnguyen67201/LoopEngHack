@@ -1130,7 +1130,8 @@ select:focus-visible {
   font-weight: 900;
 }
 
-.call-form textarea {
+.call-form textarea,
+.call-form input {
   box-sizing: border-box;
   width: 100%;
   resize: vertical;
@@ -1141,6 +1142,10 @@ select:focus-visible {
   font: inherit;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.call-form input {
+  min-height: 42px;
 }
 
 .call-presets {
@@ -1159,6 +1164,29 @@ select:focus-visible {
   font-size: 8px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.call-live-submit {
+  min-height: 42px;
+  border-color: var(--green);
+  background: #15573f;
+}
+
+.call-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.call-divider::before,
+.call-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--line-hot);
+  content: '';
 }
 
 .call-submit {

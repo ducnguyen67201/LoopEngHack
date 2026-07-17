@@ -84,6 +84,34 @@ describe('ElevenLabsLoopClosureClient', () => {
     });
   });
 
+  it('uses a bounded per-run destination override from the local call UI', async () => {
+    const fetchImpl = vi.fn<
+      (...args: [input: string | URL | Request, init?: RequestInit]) => Promise<Response>
+    >((...args) => {
+      void args;
+      return Promise.resolve(
+        Response.json({
+          success: true,
+          conversation_id: 'conversation-phone-override',
+        }),
+      );
+    });
+    const client = new ElevenLabsLoopClosureClient({
+      apiKey: 'elevenlabs-api-key-for-contract-tests',
+      agentId: 'agent-phone-test',
+      agentPhoneNumberId: 'phone-number-test',
+      toNumber: '+14155550123',
+      fetchImpl,
+    });
+
+    await client.requestClosure({ ...requestContext, toNumber: '+14165550999' });
+
+    const options = fetchImpl.mock.calls[0]?.[1];
+    expect(typeof options?.body).toBe('string');
+    if (typeof options?.body !== 'string') throw new Error('request body was not JSON');
+    expect(JSON.parse(options.body)).toMatchObject({ to_number: '+14165550999' });
+  });
+
   it('fails with a safe error that does not expose provider response details', async () => {
     const fetchImpl = vi.fn(
       (...args: [input: string | URL | Request, init?: RequestInit]): Promise<Response> => {

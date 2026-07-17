@@ -104,7 +104,11 @@ export class EpisodeManager {
     this.calendar = this.options.calendar ?? this.calendarPort();
   }
 
-  start(requestedId?: string, criteria: Partial<LoopCriteria> = {}): EpisodeRunSnapshot {
+  start(
+    requestedId?: string,
+    criteria: Partial<LoopCriteria> = {},
+    closureToNumber?: string,
+  ): EpisodeRunSnapshot {
     if (
       [...this.runs.values()].some(
         (record) => record.status === 'running' || record.status === 'awaiting_human',
@@ -217,7 +221,7 @@ export class EpisodeManager {
           return result;
         }
 
-        const closureContext = loopClosureContext(id, result);
+        const closureContext = loopClosureContext(id, result, closureToNumber);
         const receipt = await this.closurePort.requestClosure(closureContext);
         record.closure = {
           status: 'awaiting_response',
@@ -565,9 +569,14 @@ function withoutOperation(schedule: ProtectedSchedule): ProtectedScheduleInput {
   };
 }
 
-function loopClosureContext(loopId: string, result: LearningLoopResult): LoopClosureContext {
+function loopClosureContext(
+  loopId: string,
+  result: LearningLoopResult,
+  toNumber?: string,
+): LoopClosureContext {
   return {
     loopId,
+    ...(toNumber === undefined ? {} : { toNumber }),
     resultStatus: result.status,
     readinessScore: result.readiness.score,
     reason: result.reason.slice(0, 512),

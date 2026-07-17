@@ -1,5 +1,6 @@
 export interface LoopClosureContext {
   readonly loopId: string;
+  readonly toNumber?: string;
   readonly resultStatus: 'complete' | 'failed';
   readonly readinessScore: number;
   readonly reason: string;

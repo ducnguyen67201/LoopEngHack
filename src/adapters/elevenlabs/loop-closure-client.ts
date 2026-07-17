@@ -79,7 +79,7 @@ export class ElevenLabsLoopClosureClient implements LoopClosurePort {
     this.conversationEndpoint = options.conversationEndpoint ?? DEFAULT_CONVERSATION_ENDPOINT;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 10_000;
-    this.conversationTimeoutMs = options.conversationTimeoutMs ?? 120_000;
+    this.conversationTimeoutMs = options.conversationTimeoutMs ?? 300_000;
     this.pollIntervalMs = options.pollIntervalMs ?? 1_500;
   }
 
@@ -95,7 +95,7 @@ export class ElevenLabsLoopClosureClient implements LoopClosurePort {
         body: JSON.stringify({
           agent_id: this.options.agentId,
           agent_phone_number_id: this.options.agentPhoneNumberId,
-          to_number: this.options.toNumber,
+          to_number: context.toNumber ?? this.options.toNumber,
           call_recording_enabled: false,
           conversation_initiation_client_data: {
             dynamic_variables: {
