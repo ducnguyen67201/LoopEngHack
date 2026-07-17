@@ -8,6 +8,11 @@ const optionalValue = <Schema extends z.ZodType>(schema: Schema) =>
 
 const secretSchema = z.string().trim().min(24, 'must contain at least 24 characters');
 const urlSchema = z.url();
+const identifierSchema = z.string().trim().min(1).max(256);
+const e164PhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{7,14}$/, 'must be an E.164 phone number');
 
 const rawConfigSchema = z
   .object({
@@ -33,6 +38,15 @@ const rawConfigSchema = z
     LOOP_MAX_EPISODES: z.coerce.number().int().min(1).max(20).default(8),
     LOOP_STAGNATION_EPISODES: z.coerce.number().int().min(1).max(10).default(3),
     LOOP_MAX_ZERO_SPEND_USD: z.coerce.number().positive().max(100).default(1),
+    ELEVENLABS_LOOP_CLOSURE_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    ELEVENLABS_API_KEY: optionalValue(secretSchema),
+    ELEVENLABS_AGENT_ID: optionalValue(identifierSchema),
+    ELEVENLABS_PHONE_NUMBER_ID: optionalValue(identifierSchema),
+    ELEVENLABS_TO_NUMBER: optionalValue(e164PhoneSchema),
+    ELEVENLABS_WEBHOOK_SECRET: optionalValue(secretSchema),
     INTERNAL_AGENT_TOKEN: optionalValue(secretSchema),
     LOG_BRIDGE_TOKEN: optionalValue(secretSchema),
     ARENA_INTERNAL_URL: urlSchema.default('http://arena:8080'),
@@ -96,6 +110,15 @@ const rawConfigSchema = z
       case 'log-bridge':
         requireField('LOG_BRIDGE_TOKEN');
         break;
+    }
+
+    if (config.ELEVENLABS_LOOP_CLOSURE_ENABLED) {
+      requireField('INTERNAL_AGENT_TOKEN');
+      requireField('ELEVENLABS_API_KEY');
+      requireField('ELEVENLABS_AGENT_ID');
+      requireField('ELEVENLABS_PHONE_NUMBER_ID');
+      requireField('ELEVENLABS_TO_NUMBER');
+      requireField('ELEVENLABS_WEBHOOK_SECRET');
     }
   });
 

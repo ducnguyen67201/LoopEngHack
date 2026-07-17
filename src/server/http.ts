@@ -4,6 +4,12 @@ import { resolve } from 'node:path';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 
+import {
+  ElevenLabsWebhookPayloadError,
+  ElevenLabsWebhookSignatureError,
+  extractLoopClosure,
+  verifyAndParseElevenLabsWebhook,
+} from '../adapters/elevenlabs/webhook.js';
 import type { AppConfig } from '../config.js';
 import type { GameEvent } from '../domain/types.js';
 import { loopCriteriaSchema, type LoopCriteria } from '../loop/contracts.js';
@@ -17,6 +23,8 @@ import {
 import {
   EpisodeConflictError as LearningEpisodeConflictError,
   EpisodeManager,
+  LoopClosureConflictError,
+  LoopClosureNotFoundError,
 } from '../runtime/episode-manager.js';
 import { mountRecruitingMcp } from './mcp.js';
 import type { PresentationEvent } from './presentation-events.js';
@@ -120,6 +128,7 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
   const fixtureDirectory = resolve(process.cwd(), 'fixtures');
   const app = express();
   app.disable('x-powered-by');
+  mountElevenLabsWebhook(app, config, manager);
   app.use(express.json({ limit: '16kb', strict: true }));
 
   app.get('/health/live', (_request, response) => {
@@ -225,6 +234,80 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
   return { app, manager };
 }
 
+function mountElevenLabsWebhook(app: Express, config: AppConfig, manager: EpisodeManager): void {
+  app.post(
+    '/api/webhooks/elevenlabs',
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    (request, response) => {
+      if (!config.ELEVENLABS_LOOP_CLOSURE_ENABLED) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const rawBody: unknown = request.body;
+      if (!Buffer.isBuffer(rawBody) || config.ELEVENLABS_WEBHOOK_SECRET === undefined) {
+        response.status(400).json({ error: 'invalid_webhook_payload' });
+        return;
+      }
+
+      try {
+        const event = verifyAndParseElevenLabsWebhook(
+          rawBody.toString('utf8'),
+          request.get('ElevenLabs-Signature'),
+          config.ELEVENLABS_WEBHOOK_SECRET,
+        );
+        if (
+          (event.type === 'post_call_transcription' || event.type === 'call_initiation_failure') &&
+          event.data.agent_id !== config.ELEVENLABS_AGENT_ID
+        ) {
+          response.status(403).json({ error: 'webhook_agent_mismatch' });
+          return;
+        }
+        const closure = extractLoopClosure(event);
+        if (closure !== null) {
+          manager.closeWithSpokenResponse(closure);
+          response.json({ status: 'closed', loopId: closure.loopId });
+          return;
+        }
+
+        const conversationId = event.data.conversation_id;
+        if (event.type === 'post_call_transcription' && conversationId !== undefined) {
+          manager.failLoopClosure(conversationId, 'phone call ended without a spoken response');
+          response.json({ status: 'failed' });
+          return;
+        }
+        if (event.type === 'call_initiation_failure' && conversationId !== undefined) {
+          manager.failLoopClosure(
+            conversationId,
+            `phone call failed: ${event.data.failure_reason ?? 'unknown provider reason'}`,
+          );
+          response.json({ status: 'failed' });
+          return;
+        }
+
+        response.json({ status: 'ignored' });
+      } catch (error) {
+        if (error instanceof ElevenLabsWebhookSignatureError) {
+          response.status(401).json({ error: 'invalid_webhook_signature' });
+          return;
+        }
+        if (error instanceof ElevenLabsWebhookPayloadError) {
+          response.status(400).json({ error: 'invalid_webhook_payload' });
+          return;
+        }
+        if (error instanceof LoopClosureNotFoundError) {
+          response.status(404).json({ error: 'loop_closure_not_found' });
+          return;
+        }
+        if (error instanceof LoopClosureConflictError) {
+          response.status(409).json({ error: 'loop_closure_conflict' });
+          return;
+        }
+        response.status(500).json({ error: 'internal_error' });
+      }
+    },
+  );
+}
+
 export function startArenaServer(config: AppConfig) {
   const { app, manager } = createArenaApp(config);
   const server = app.listen(config.PORT, '0.0.0.0', () => {
@@ -238,7 +321,13 @@ export function startArenaServer(config: AppConfig) {
 class EpisodeStartUnauthorizedError extends Error {}
 
 function requireEpisodeStartAuthorization(request: Request, config: AppConfig): void {
-  if (config.DEMO_MODE !== 'hybrid' && config.DEMO_MODE !== 'live') return;
+  if (
+    config.DEMO_MODE !== 'hybrid' &&
+    config.DEMO_MODE !== 'live' &&
+    !config.ELEVENLABS_LOOP_CLOSURE_ENABLED
+  ) {
+    return;
+  }
   const configuredToken = config.INTERNAL_AGENT_TOKEN;
   const authorization = request.get('Authorization');
   const suppliedToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;

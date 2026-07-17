@@ -35,6 +35,7 @@ describe('recruiting presentation reducer', () => {
         ...eventKindSchema.options,
         'inner_episode_completed',
         'learning_episode_completed',
+        'loop_closure_requested',
         'loop_completed',
       ].sort(),
     );

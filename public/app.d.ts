@@ -16,6 +16,7 @@ export interface GameEvent extends Omit<
     | DomainGameEvent['kind']
     | 'inner_episode_completed'
     | 'learning_episode_completed'
+    | 'loop_closure_requested'
     | 'loop_completed';
   payload: Readonly<Record<string, unknown>>;
   visualCue: string;
