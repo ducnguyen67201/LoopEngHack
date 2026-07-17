@@ -4,16 +4,16 @@ Transparent 8-bit character assets for the recruiting-loop UI. The full sheets a
 
 ## Event-to-sprite mapping
 
-| Actor | Sprite state | Suggested event cues |
-| --- | --- | --- |
-| White Researcher | `idle` | waiting, episode initialized |
-| White Researcher | `searching` | Zero capability search started, profile enrichment requested |
-| White Researcher | `verifying` | claim verification or evidence comparison started |
-| White Researcher | `success` | verified evidence stored, legitimate candidate cleared |
-| Red Social Engineer | `idle` | synthetic candidate waiting |
-| Red Social Engineer | `messaging` | outreach reply or manipulation attempt composed |
-| Red Social Engineer | `bluffing` | unsupported authority or credential claim submitted |
-| Red Social Engineer | `blocked` | Pomerium denied a privileged action or replay defense fired |
+| Actor               | Sprite state | Suggested event cues                                         |
+| ------------------- | ------------ | ------------------------------------------------------------ |
+| White Researcher    | `idle`       | waiting, episode initialized                                 |
+| White Researcher    | `searching`  | Zero capability search started, profile enrichment requested |
+| White Researcher    | `verifying`  | claim verification or evidence comparison started            |
+| White Researcher    | `success`    | verified evidence stored, legitimate candidate cleared       |
+| Red Social Engineer | `idle`       | synthetic candidate waiting                                  |
+| Red Social Engineer | `messaging`  | outreach reply or manipulation attempt composed              |
+| Red Social Engineer | `bluffing`   | unsupported authority or credential claim submitted          |
+| Red Social Engineer | `blocked`    | Pomerium denied a privileged action or replay defense fired  |
 
 The four recruit images are synthetic profile avatars. Their appearance is presentation-only and must never become evidence, a ranking signal, or a hiring feature.
 

@@ -1,29 +1,33 @@
-# Loop Engine Hackathon
+# Hire Me If You Can
 
-Standalone npm workspace for the LoopCTF hackathon project.
+A Pomerium-governed autonomous outbound recruiting game for the Loop Engineering Hackathon.
 
 ## Project
 
-**LoopCTF** is a self-hardening web application where attacker and defender agents learn continuously, while Pomerium ensures that only verified evidence—not an agent's confidence—can change the live target.
+Synthetic candidate agents attempt to manipulate an outbound recruiting workflow. A verifier discovers public-proof capabilities through Zero, while Pomerium ensures only the hiring-controller identity can execute consequential recruiting tools such as `recruiting_schedule_screen`.
 
-## Working rule
+The application uses a vendor-neutral `RecruitingOpsPort`. The hackathon implementation is a controlled local outbound pipeline; a third-party recruiting platform can be added later without changing the engine or UI.
 
-All new application code, configuration, tests, deployment files, demo assets, and submission documentation for the hackathon belong in this directory.
+## Safety boundary
 
-Do not modify or copy implementation code from the sibling TrustLoopGuard, HackAgentOrchestration, or HackAgent repositories.
+- Candidate content is untrusted data, never authority.
+- The sourcer may research, draft, and send test outreach but cannot schedule screens.
+- The verifier may discover capabilities and submit evidence.
+- The hiring controller may schedule only after validating hashed evidence.
+- All candidates, inboxes, and calendars used by the demo are synthetic or allowlisted test resources.
 
 ## Project structure
 
 ```text
-src/domain/       Frozen schemas, inferred types, and adapter ports
-src/              Runtime configuration and composition root
-fixtures/         Synthetic contract data now; recorded-live data later
-tests/            Contract, configuration, and composition tests
-compose.yaml      Frozen service names, ports, and environment seams
-.claude/PRPs/     Local implementation plans and reports
+src/domain/       Strict schemas, inferred types, and vendor-neutral ports
+src/agents/       Inspectable red/white learning policies
+src/engine/       Coordinator, reducer, deterministic fakes, and replay logic
+src/adapters/     Pomerium, Zero, and local outbound implementations
+fixtures/         Synthetic recruiting contract data
+public/           Event-driven 8-bit renderer and original sprites
+tests/            Contract, adapter, configuration, and composition tests
+compose.yaml      Recruiting service topology and Pomerium data plane
 ```
-
-The first slice intentionally contains contracts and scaffolding only. Target behavior, agents, MCP handlers, Pomerium policy, SSE runtime, and UI are separate PRDs that plug into the ports defined here.
 
 ## Commands
 
@@ -41,12 +45,15 @@ docker compose config
 the default browser, and automatically replays the complete sponsor-safe story. Set
 `DEMO_NO_OPEN=1` when running it in CI or another headless environment.
 
+To connect the Pomerium Zero data plane, follow
+[`docs/runbooks/pomerium-zero-bootstrap.md`](docs/runbooks/pomerium-zero-bootstrap.md).
+
 ## Current status
 
-- [x] Concept and architecture locked
-- [x] Work decomposed into two phases and small PRDs
-- [x] Standalone project structure and contract kit
-- [ ] Pomerium capability spike
-- [ ] Phase 1 headless trust loop
-- [ ] Phase 2 judge UI and provenance
-- [ ] Deployment, recording, and submission
+- [x] Recruiting concept and architecture locked
+- [x] Vendor-neutral recruiting contracts and golden event fixture
+- [ ] Complete headless agent loop
+- [ ] Complete Pomerium same-tool deny/allow proof
+- [ ] Complete Zero live capability invocation
+- [ ] Wire outbound pipeline and 8-bit renderer
+- [ ] Record and submit the three-minute demo

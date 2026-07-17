@@ -7,19 +7,15 @@ const VERSION = '0.1.0';
 
 const serviceNameByRole = {
   arena: 'arena',
-  target: null,
-  'red-agent': 'red-agent',
-  'white-agent': 'white-agent',
-  'deploy-controller': 'deploy-controller',
+  'outbound-sourcer': 'outbound-sourcer',
+  'white-verifier': 'white-verifier',
+  'hiring-controller': 'hiring-controller',
+  'recruiting-mcp': 'recruiting-mcp',
   'log-bridge': 'pomerium-log-bridge',
-} as const satisfies Record<AppConfig['SERVICE_ROLE'], ServiceName | null>;
+} as const satisfies Record<AppConfig['SERVICE_ROLE'], ServiceName>;
 
 export function createServiceDescriptor(config: AppConfig): HealthResponse {
-  const mapped = serviceNameByRole[config.SERVICE_ROLE];
-  const service =
-    mapped ?? (config.TARGET_VERSION === 'v1' ? ('target-v1' as const) : ('target-v2' as const));
-
-  return { status: 'ok', service, version: VERSION };
+  return { status: 'ok', service: serviceNameByRole[config.SERVICE_ROLE], version: VERSION };
 }
 
 const entrypoint = process.argv[1];

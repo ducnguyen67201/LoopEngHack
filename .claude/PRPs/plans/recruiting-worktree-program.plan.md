@@ -14,18 +14,18 @@ This file is the dependency index. Each linked plan is independently executable 
 
 Repository: `/Users/ducng/Desktop/workspace/Umbrella/loop-engine-hackathon`
 
-| Item | Current state | Consequence |
-| --- | --- | --- |
-| Git | Branch `codex/project-structure`, commit `13c2940` | Good common scaffold commit |
-| Working tree | Dirty: recruiting docs/runbook and these plans are untracked; `.env.example`, `README.md`, and `compose.yaml` contain an uncommitted Pomerium Zero bootstrap change; `zeroxyz-cli-1.26.0.tgz` is untracked | Review and split these changes before creating worktrees |
-| Domain contracts | Compile and test, but model the obsolete cyber CTF | Must be replaced before adapters branch |
-| Architecture | `docs/recruiting-loop-engine.md` defines the recruiting pivot | Use as the product source of truth |
-| Engine | Interfaces only; no coordinator or learning loop | Core plan owns implementation |
-| Pomerium | Compose placeholder and sanitized event schema only | No live MCP policy proof yet |
-| Zero | No adapter | Capability discovery/invocation must be added |
-| Fillmore | No adapter | Transport availability must be verified first |
-| UI | No browser UI or sprites | UI can start from committed event fixtures |
-| Validation | Old scaffold tests pass; they do not validate the recruiting design | Replace fixtures/tests; do not count current green build as product completion |
+| Item             | Current state                                                                                                                                                                                              | Consequence                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Git              | Branch `codex/project-structure`, commit `13c2940`                                                                                                                                                         | Good common scaffold commit                                                    |
+| Working tree     | Dirty: recruiting docs/runbook and these plans are untracked; `.env.example`, `README.md`, and `compose.yaml` contain an uncommitted Pomerium Zero bootstrap change; `zeroxyz-cli-1.26.0.tgz` is untracked | Review and split these changes before creating worktrees                       |
+| Domain contracts | Compile and test, but model the obsolete cyber CTF                                                                                                                                                         | Must be replaced before adapters branch                                        |
+| Architecture     | `docs/recruiting-loop-engine.md` defines the recruiting pivot                                                                                                                                              | Use as the product source of truth                                             |
+| Engine           | Interfaces only; no coordinator or learning loop                                                                                                                                                           | Core plan owns implementation                                                  |
+| Pomerium         | Compose placeholder and sanitized event schema only                                                                                                                                                        | No live MCP policy proof yet                                                   |
+| Zero             | No adapter                                                                                                                                                                                                 | Capability discovery/invocation must be added                                  |
+| Fillmore         | No adapter                                                                                                                                                                                                 | Transport availability must be verified first                                  |
+| UI               | No browser UI or sprites                                                                                                                                                                                   | UI can start from committed event fixtures                                     |
+| Validation       | Old scaffold tests pass; they do not validate the recruiting design                                                                                                                                        | Replace fixtures/tests; do not count current green build as product completion |
 
 ## Non-negotiable architecture
 
@@ -64,14 +64,14 @@ Phase 0 is short and serial because all later branches compile against it. After
 
 ## Plans and exclusive ownership
 
-| Plan | Branch | Exclusive ownership | Starts |
-| --- | --- | --- | --- |
-| [Core contracts and engine](./recruiting-engine-core.plan.md) | `codex/recruiting-engine-contracts` | `src/domain/**`, `src/engine/**`, `src/agents/**`, recruiting fixtures and core tests | First; serial |
-| [Pomerium adapter](./pomerium-recruiting-adapter.plan.md) | `codex/pomerium-adapter` | `src/adapters/pomerium/**`, `config/pomerium/**`, Pomerium tests/runbook/smoke script | After contract freeze |
-| [Zero adapter](./zero-verification-adapter.plan.md) | `codex/zero-adapter` | `src/adapters/zero/**`, Zero tests/runbook/smoke script | After contract freeze |
-| [Fillmore adapter](./fillmore-recruiting-adapter.plan.md) | `codex/fillmore-adapter` | `src/adapters/fillmore/**`, Fillmore tests/runbook/smoke script | After contract freeze |
-| [8-bit game UI](./recruiting-game-ui.plan.md) | `codex/recruiting-game-ui` | `public/**`, `assets/sprites/**`, UI tests | After contract fixture freeze |
-| [Pipeline integration](./recruiting-pipeline-integration.plan.md) | `codex/recruiting-pipeline` | `src/runtime/**`, `src/server/**`, `src/main.ts`, `src/config.ts`, `compose.yaml`, `.env.example`, integration/E2E tests | Shell after contract freeze; live wiring after adapters |
+| Plan                                                              | Branch                              | Exclusive ownership                                                                                                      | Starts                                                  |
+| ----------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| [Core contracts and engine](./recruiting-engine-core.plan.md)     | `codex/recruiting-engine-contracts` | `src/domain/**`, `src/engine/**`, `src/agents/**`, recruiting fixtures and core tests                                    | First; serial                                           |
+| [Pomerium adapter](./pomerium-recruiting-adapter.plan.md)         | `codex/pomerium-adapter`            | `src/adapters/pomerium/**`, `config/pomerium/**`, Pomerium tests/runbook/smoke script                                    | After contract freeze                                   |
+| [Zero adapter](./zero-verification-adapter.plan.md)               | `codex/zero-adapter`                | `src/adapters/zero/**`, Zero tests/runbook/smoke script                                                                  | After contract freeze                                   |
+| [Local outbound adapter](./outbound-recruiting-adapter.plan.md)   | `codex/outbound-recruiting-adapter` | `src/adapters/outbound/**`, outbound tests, fixtures, and runbook                                                        | After contract freeze                                   |
+| [8-bit game UI](./recruiting-game-ui.plan.md)                     | `codex/recruiting-game-ui`          | `public/**`, `assets/sprites/**`, UI tests                                                                               | After contract fixture freeze                           |
+| [Pipeline integration](./recruiting-pipeline-integration.plan.md) | `codex/recruiting-pipeline`         | `src/runtime/**`, `src/server/**`, `src/main.ts`, `src/config.ts`, `compose.yaml`, `.env.example`, integration/E2E tests | Shell after contract freeze; live wiring after adapters |
 
 Ownership rule: a worktree must not edit another row’s files. If an adapter discovers a contract gap, record the requested change in its runbook and make the actual domain change on the core branch before rebasing all dependent branches. Do not independently “fix” shared types in multiple worktrees.
 
@@ -125,7 +125,7 @@ echo "$CONTRACT_SHA"
 ```bash
 git worktree add ../loop-engine-pomerium -b codex/pomerium-adapter "$CONTRACT_SHA"
 git worktree add ../loop-engine-zero -b codex/zero-adapter "$CONTRACT_SHA"
-git worktree add ../loop-engine-fillmore -b codex/fillmore-adapter "$CONTRACT_SHA"
+git worktree add ../loop-engine-outbound -b codex/outbound-recruiting-adapter "$CONTRACT_SHA"
 git worktree add ../loop-engine-ui -b codex/recruiting-game-ui "$CONTRACT_SHA"
 git worktree add ../loop-engine-pipeline -b codex/recruiting-pipeline "$CONTRACT_SHA"
 ```
@@ -140,7 +140,7 @@ Only the pipeline branch receives the sibling implementations:
 cd ../loop-engine-pipeline
 git merge --no-ff codex/pomerium-adapter
 git merge --no-ff codex/zero-adapter
-git merge --no-ff codex/fillmore-adapter
+git merge --no-ff codex/outbound-recruiting-adapter
 git merge --no-ff codex/recruiting-game-ui
 ```
 
@@ -150,10 +150,10 @@ Because file ownership is disjoint, these merges should be mechanical. A conflic
 
 Phase 0 must commit all of these:
 
-- Actor IDs: `red-candidate`, `fillmore-sourcer`, `white-verifier`, `hiring-controller`.
+- Actor IDs: `red-candidate`, `outbound-sourcer`, `white-verifier`, `hiring-controller`.
 - The seven loop phases.
 - Strict `Observation`, `AuthorizationDecision`, `GameEvent`, `EpisodeState`, memory, evidence, and recovery schemas.
-- `FillmorePort`, `ZeroPort`, `PolicyPort`, `EventSink`, `Clock`, and `IdGenerator` interfaces.
+- `RecruitingOpsPort`, `ZeroPort`, `PolicyPort`, `EventSink`, `Clock`, and `IdGenerator` interfaces.
 - Exact tool names and per-actor tool maps.
 - Fake adapters that make every port executable without credentials.
 - One deterministic Turn 0–8 fixture covering deny, discover, verify, allow, replay-block, and learn.
@@ -184,12 +184,12 @@ That boundary permits:
 ```text
 Synthetic candidate message
   -> Fillmore pipeline event
-  -> Sourcer requests fillmore_schedule_screen through MCP
+  -> Sourcer requests recruiting_schedule_screen through MCP
   -> Pomerium DENY (sourcer identity cannot call tool)
   -> White verifier requests a verification capability
   -> Zero discovers + invokes an allowlisted public-proof capability
   -> Controller validates evidence artifact + regression
-  -> Controller requests the same fillmore_schedule_screen tool
+  -> Controller requests the same recruiting_schedule_screen tool
   -> Pomerium ALLOW
   -> Fillmore creates allowlisted test screening event
   -> Mutated attack replays and is blocked
@@ -232,7 +232,7 @@ docker compose up --build --wait
 
 Required live evidence:
 
-1. Pomerium authorization log for sourcer + `fillmore_schedule_screen` = deny.
+1. Pomerium authorization log for sourcer + `recruiting_schedule_screen` = deny.
 2. Pomerium authorization log for controller + the identical tool = allow.
 3. Zero result containing capability ID, provider/provenance, invocation ID, and bounded spend.
 4. Fillmore result containing a real sandbox operation ID or calendar event ID.

@@ -1,12 +1,12 @@
-name: loopctf
+name: recruiting-loop
 
-x-app: &app # PRD 09 adds the production Dockerfile. The service topology is frozen here.
+x-app: &app
   build:
     context: .
-  image: loopctf-app:dev
+  image: recruiting-loop-app:dev
   restart: unless-stopped
   networks:
-    - loopctf
+    - recruiting-loop
 
 x-shared-environment: &shared-environment
   NODE_ENV: ${NODE_ENV:-production}
@@ -22,77 +22,68 @@ services:
       SERVICE_ROLE: arena
       PORT: 8080
       LOG_BRIDGE_TOKEN: ${LOG_BRIDGE_TOKEN:-}
-      DEMO_MODE: ${DEMO_MODE:-live}
+      DEMO_MODE: ${DEMO_MODE:-fake}
       DEMO_STEP_DELAY_MS: ${DEMO_STEP_DELAY_MS:-600}
-      TARGET_V1_URL: http://target-v1:8081
-      TARGET_V2_URL: http://target-v2:8081
-      RED_AGENT_URL: http://red-agent:8091
-      WHITE_AGENT_URL: http://white-agent:8092
-      CONTROLLER_AGENT_URL: http://deploy-controller:8093
+      RECRUITING_MCP_INTERNAL_URL: http://recruiting-mcp:8084/mcp
     ports:
       - '8080:8080'
 
-  target-v1:
-    <<: *app
-    command: ['node', 'dist/main.js']
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      SERVICE_ROLE: target
-      TARGET_VERSION: v1
-      PORT: 8081
-
-  target-v2:
-    <<: *app
-    command: ['node', 'dist/main.js']
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      SERVICE_ROLE: target
-      TARGET_VERSION: v2
-      PORT: 8081
-
-  red-agent:
+  recruiting-mcp:
     <<: *app
     command: ['node', 'dist/main.js']
     environment:
       <<: *shared-environment
-      SERVICE_ROLE: red-agent
+      SERVICE_ROLE: recruiting-mcp
+      PORT: 8084
+
+  outbound-sourcer:
+    <<: *app
+    command: ['node', 'dist/main.js']
+    environment:
+      <<: *shared-environment
+      SERVICE_ROLE: outbound-sourcer
       PORT: 8091
-      RED_MCP_URL: ${RED_MCP_URL:-}
-      RED_POMERIUM_JWT: ${RED_POMERIUM_JWT:-}
+      SOURCER_MCP_URL: ${SOURCER_MCP_URL:-}
+      SOURCER_POMERIUM_JWT: ${SOURCER_POMERIUM_JWT:-}
 
-  white-agent:
+  white-verifier:
     <<: *app
     command: ['node', 'dist/main.js']
     environment:
       <<: *shared-environment
-      SERVICE_ROLE: white-agent
+      SERVICE_ROLE: white-verifier
       PORT: 8092
-      WHITE_MCP_URL: ${WHITE_MCP_URL:-}
-      WHITE_POMERIUM_JWT: ${WHITE_POMERIUM_JWT:-}
+      VERIFIER_MCP_URL: ${VERIFIER_MCP_URL:-}
+      VERIFIER_POMERIUM_JWT: ${VERIFIER_POMERIUM_JWT:-}
 
-  deploy-controller:
+  hiring-controller:
     <<: *app
     command: ['node', 'dist/main.js']
     environment:
       <<: *shared-environment
-      SERVICE_ROLE: deploy-controller
+      SERVICE_ROLE: hiring-controller
       PORT: 8093
       CONTROLLER_MCP_URL: ${CONTROLLER_MCP_URL:-}
       CONTROLLER_POMERIUM_JWT: ${CONTROLLER_POMERIUM_JWT:-}
 
   pomerium:
-    # PRD 01 replaces the fallback tag with the sponsor-confirmed MCP image digest.
     image: ${POMERIUM_IMAGE:-pomerium/pomerium:latest}
     restart: unless-stopped
+    environment:
+      POMERIUM_ZERO_TOKEN: ${POMERIUM_ZERO_TOKEN:-}
+      XDG_CACHE_HOME: /var/cache
+    volumes:
+      - pomerium-cache:/var/cache
     networks:
-      - loopctf
+      - recruiting-loop
     ports:
       - '443:443'
     profiles:
       - pomerium
 
 networks:
-  loopctf:
+  recruiting-loop:
     driver: bridge
+
+volumes:
+  pomerium-cache:
