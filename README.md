@@ -36,6 +36,9 @@ npm run build
 docker compose config
 ```
 
+To connect the Pomerium Zero data plane first, follow
+[`docs/runbooks/pomerium-zero-bootstrap.md`](docs/runbooks/pomerium-zero-bootstrap.md).
+
 ## Current status
 
 - [x] Concept and architecture locked

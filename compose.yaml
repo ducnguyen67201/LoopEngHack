@@ -83,9 +83,18 @@ services:
       CONTROLLER_POMERIUM_JWT: ${CONTROLLER_POMERIUM_JWT:-}
 
   pomerium:
-    # PRD 01 replaces the fallback tag with the sponsor-confirmed MCP image digest.
+    # Bootstrap Zero with latest, then replace this with the sponsor-confirmed
+    # MCP-capable image digest before testing tool-level policy.
     image: ${POMERIUM_IMAGE:-pomerium/pomerium:latest}
     restart: unless-stopped
+    environment:
+      POMERIUM_ZERO_TOKEN: ${POMERIUM_ZERO_TOKEN:-}
+      # Runtime flags are local Core/data-plane settings and are not configured
+      # in the Zero Console. This takes effect with the MCP-capable image.
+      RUNTIME_FLAGS: '{"mcp":true}'
+      XDG_CACHE_HOME: /var/cache
+    volumes:
+      - pomerium-cache:/var/cache
     networks:
       - loopctf
     ports:
@@ -96,3 +105,6 @@ services:
 networks:
   loopctf:
     driver: bridge
+
+volumes:
+  pomerium-cache:
