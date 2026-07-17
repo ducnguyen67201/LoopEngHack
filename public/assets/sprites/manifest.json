@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "style": {
+    "name": "Hire Me If You Can 8-bit",
+    "rendering": "pixelated",
+    "sharedBaseline": true,
+    "background": "transparent"
+  },
+  "actors": {
+    "whiteResearcher": {
+      "sheet": "/assets/sprites/white-researcher.png",
+      "states": {
+        "idle": "/assets/sprites/researcher/idle.png",
+        "searching": "/assets/sprites/researcher/searching.png",
+        "verifying": "/assets/sprites/researcher/verifying.png",
+        "success": "/assets/sprites/researcher/success.png"
+      }
+    },
+    "redSocialEngineer": {
+      "sheet": "/assets/sprites/red-social-engineer.png",
+      "states": {
+        "idle": "/assets/sprites/social-engineer/idle.png",
+        "messaging": "/assets/sprites/social-engineer/messaging.png",
+        "bluffing": "/assets/sprites/social-engineer/bluffing.png",
+        "blocked": "/assets/sprites/social-engineer/blocked.png"
+      }
+    }
+  },
+  "syntheticRecruits": {
+    "sheet": "/assets/sprites/synthetic-recruits.png",
+    "profiles": {
+      "infrastructureEngineer": "/assets/sprites/recruits/infrastructure-engineer.png",
+      "productDesigner": "/assets/sprites/recruits/product-designer.png",
+      "securityResearcher": "/assets/sprites/recruits/security-researcher.png",
+      "platformEngineer": "/assets/sprites/recruits/platform-engineer.png"
+    }
+  }
+}

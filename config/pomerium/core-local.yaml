@@ -1,0 +1,37 @@
+# Local-only Pomerium Core policy smoke test.
+#
+# Both routes are intentionally public so this first test isolates MCP parsing
+# and tool-level authorization. Do not use this configuration in production.
+
+address: :443
+certificate_file: /pomerium/certs/core-cert.pem
+certificate_key_file: /pomerium/certs/core-key.pem
+
+runtime_flags:
+  mcp: true
+
+authorize_log_fields:
+  - request-id
+  - mcp-method
+  - mcp-tool
+  - mcp-tool-parameters
+
+routes:
+  - name: Sourcer MCP policy smoke test
+    from: https://sourcer-mcp.localhost.pomerium.io
+    to: http://host.docker.internal:8084/mcp
+    mcp:
+      server: {}
+    allow_public_unauthenticated_access: true
+    policy:
+      deny:
+        and:
+          - mcp_tool:
+              is: recruiting_schedule_screen
+
+  - name: Controller MCP policy smoke test
+    from: https://controller-mcp.localhost.pomerium.io
+    to: http://host.docker.internal:8084/mcp
+    mcp:
+      server: {}
+    allow_public_unauthenticated_access: true

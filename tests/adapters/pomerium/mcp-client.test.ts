@@ -24,7 +24,7 @@ describe('PomeriumMcpClient', () => {
       response.setHeader('x-request-id', 'request-allow-1');
       const server = new McpServer({ name: 'test-upstream', version: '1.0.0' });
       server.registerTool(
-        'fillmore_schedule_screen',
+        'recruiting_schedule_screen',
         { inputSchema: { candidate_id: z.string() } },
         ({ candidate_id }) =>
           Promise.resolve({
@@ -52,7 +52,7 @@ describe('PomeriumMcpClient', () => {
     });
 
     try {
-      const outcome = await client.callTool('fillmore_schedule_screen', {
+      const outcome = await client.callTool('recruiting_schedule_screen', {
         candidate_id: 'candidate-1',
       });
 
@@ -87,7 +87,7 @@ describe('PomeriumMcpClient', () => {
       fetch: deniedFetch,
     });
 
-    const outcome = await client.callTool('fillmore_schedule_screen', {
+    const outcome = await client.callTool('recruiting_schedule_screen', {
       episode_id: 'episode-1',
       candidate_id: 'candidate-1',
       evidence_id: 'evidence-1',
@@ -103,6 +103,74 @@ describe('PomeriumMcpClient', () => {
     expect(observedHeaders[0]?.get('authorization')).toBe(authorizationHeader);
     expect(JSON.stringify(outcome)).not.toContain(secretJwt);
     expect(JSON.stringify(outcome)).not.toContain('deliberately not exposed');
+  });
+
+  it('normalizes Pomerium MCP access-denied errors transported over HTTP 200', async () => {
+    const deniedFetch = vi.fn<typeof globalThis.fetch>((_input, init) => {
+      if (typeof init?.body !== 'string') {
+        throw new Error('expected the MCP transport to send a JSON string body');
+      }
+      const body = JSON.parse(init.body) as {
+        id?: number;
+        method?: string;
+      };
+      const headers = {
+        'content-type': 'application/json',
+        'x-request-id': 'request-mcp-deny-1',
+      };
+
+      if (body.method === 'notifications/initialized') {
+        return Promise.resolve(new Response(null, { status: 202, headers }));
+      }
+      if (body.method === 'initialize') {
+        return Promise.resolve(
+          Response.json(
+            {
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                protocolVersion: '2025-11-25',
+                capabilities: {},
+                serverInfo: { name: 'pomerium-policy-test', version: '1.0.0' },
+              },
+            },
+            { headers },
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        Response.json(
+          {
+            jsonrpc: '2.0',
+            id: body.id,
+            error: {
+              code: -32602,
+              message:
+                'access denied, please see the authorization log for the request request-mcp-deny-1 for details',
+            },
+          },
+          { headers },
+        ),
+      );
+    });
+    const client = new PomeriumMcpClient({
+      routeUrl: 'https://sourcer-mcp.example.test',
+      authorizationHeader,
+      fetch: deniedFetch,
+    });
+
+    const outcome = await client.callTool('recruiting_schedule_screen', {
+      candidate_id: 'candidate-1',
+    });
+
+    expect(outcome).toEqual({
+      status: 'denied',
+      kind: 'authorization_denied',
+      requestId: 'request-mcp-deny-1',
+      summary: 'Pomerium denied the MCP tool request',
+      retriable: false,
+    });
   });
 
   it('isolates request correlation across concurrent denied calls', async () => {
@@ -123,8 +191,8 @@ describe('PomeriumMcpClient', () => {
     });
 
     const outcomes = await Promise.all([
-      client.callTool('fillmore_schedule_screen', { candidate_id: 'candidate-1' }),
-      client.callTool('fillmore_schedule_screen', { candidate_id: 'candidate-2' }),
+      client.callTool('recruiting_schedule_screen', { candidate_id: 'candidate-1' }),
+      client.callTool('recruiting_schedule_screen', { candidate_id: 'candidate-2' }),
     ]);
 
     expect(outcomes.map((outcome) => outcome.status)).toEqual(['denied', 'denied']);

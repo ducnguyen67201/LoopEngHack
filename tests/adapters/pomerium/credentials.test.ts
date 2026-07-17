@@ -9,9 +9,9 @@ const jwt = 'eyJhbGciOiJIUzI1NiJ9.test-service-account-jwt';
 
 describe('PomeriumCredentialResolver', () => {
   it('formats a raw service-account JWT exactly once', () => {
-    const resolver = new PomeriumCredentialResolver({ 'fillmore-sourcer': jwt });
+    const resolver = new PomeriumCredentialResolver({ 'outbound-sourcer': jwt });
 
-    expect(resolver.authorizationHeader('fillmore-sourcer')).toBe(`Bearer Pomerium-${jwt}`);
+    expect(resolver.authorizationHeader('outbound-sourcer')).toBe(`Bearer Pomerium-${jwt}`);
   });
 
   it('accepts the Pomerium-prefixed token form used by MCP clients', () => {
@@ -25,11 +25,11 @@ describe('PomeriumCredentialResolver', () => {
   it('fails with a sanitized identity-only error when a credential is absent', () => {
     const resolver = new PomeriumCredentialResolver({ 'white-verifier': jwt });
 
-    expect(() => resolver.authorizationHeader('fillmore-sourcer')).toThrow(
+    expect(() => resolver.authorizationHeader('outbound-sourcer')).toThrow(
       MissingPomeriumCredentialError,
     );
-    expect(() => resolver.authorizationHeader('fillmore-sourcer')).toThrow(
-      'Pomerium credential is unavailable for fillmore-sourcer',
+    expect(() => resolver.authorizationHeader('outbound-sourcer')).toThrow(
+      'Pomerium credential is unavailable for outbound-sourcer',
     );
   });
 });

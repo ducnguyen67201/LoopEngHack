@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Implement the judge-visible authorization boundary: the Fillmore sourcer identity is denied access to `fillmore_schedule_screen`, while the hiring controller identity is allowed to call that exact same MCP tool after evidence is validated.
+Implement the judge-visible authorization boundary: the Fillmore sourcer identity is denied access to `recruiting_schedule_screen`, while the hiring controller identity is allowed to call that exact same MCP tool after evidence is validated.
 
 ## Branch and ownership
 
@@ -29,13 +29,13 @@ Expose the same upstream recruiting MCP server through identity-specific routes 
 
 Required matrix:
 
-| Authenticated identity | Tool | Expected |
-| --- | --- | --- |
-| Fillmore sourcer | create/source/outreach/read tools | allow |
-| Fillmore sourcer | `fillmore_schedule_screen` | deny |
-| White verifier | Zero/evidence tools on its route | allow as configured |
-| Hiring controller | `fillmore_schedule_screen` | allow |
-| Unknown/expired identity | any protected tool | deny |
+| Authenticated identity   | Tool                              | Expected            |
+| ------------------------ | --------------------------------- | ------------------- |
+| Fillmore sourcer         | create/source/outreach/read tools | allow               |
+| Fillmore sourcer         | `recruiting_schedule_screen`      | deny                |
+| White verifier           | Zero/evidence tools on its route  | allow as configured |
+| Hiring controller        | `recruiting_schedule_screen`      | allow               |
+| Unknown/expired identity | any protected tool                | deny                |
 
 Prefer deny allowlists using `mcp_tool.not_in` for each identity route/policy. Keep non-tool MCP methods available for connection/session negotiation.
 
@@ -95,8 +95,8 @@ Avoid logging `mcp-tool-parameters` because candidate data and tool arguments ca
 
 ```json
 {
-  "identity": "fillmore-sourcer",
-  "tool": "fillmore_schedule_screen",
+  "identity": "outbound-sourcer",
+  "tool": "recruiting_schedule_screen",
   "decision": "deny",
   "reasonCodes": ["mcp-tool-unauthorized"],
   "requestId": "req-demo-003"
@@ -132,8 +132,8 @@ Avoid logging `mcp-tool-parameters` because candidate data and tool arguments ca
 - strict parser accepts sanitized real log fixtures and rejects unknown/missing critical fields;
 - credentials never appear in serialized errors, observations, snapshots, or logger output;
 - sourcer + read tool = allow;
-- sourcer + `fillmore_schedule_screen` = deny;
-- controller + `fillmore_schedule_screen` = allow;
+- sourcer + `recruiting_schedule_screen` = deny;
+- controller + `recruiting_schedule_screen` = allow;
 - exact same tool input hash is used for the deny/allow comparison;
 - unknown identity = deny;
 - non-tool MCP request is not accidentally blocked by `mcp_tool` policy;

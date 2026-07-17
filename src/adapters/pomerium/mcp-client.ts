@@ -78,6 +78,24 @@ function classifyFailure(
     );
   }
 
+  // Pomerium's MCP-aware authorization layer returns policy denials as a
+  // JSON-RPC error while retaining HTTP 200, so the SDK surfaces an McpError.
+  if (
+    error instanceof McpError &&
+    error.code === -32602 &&
+    error.message.startsWith('MCP error -32602: access denied')
+  ) {
+    return withOptionalRequestId(
+      {
+        status: 'denied' as const,
+        kind: 'authorization_denied' as const,
+        summary: 'Pomerium denied the MCP tool request',
+        retriable: false,
+      },
+      requestId,
+    );
+  }
+
   if (error instanceof McpError || (observation !== undefined && observation.status < 500)) {
     return withOptionalRequestId(
       {

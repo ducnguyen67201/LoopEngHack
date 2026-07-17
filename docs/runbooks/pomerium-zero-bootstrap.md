@@ -2,7 +2,7 @@
 
 This runbook connects the local Docker data plane to Pomerium Zero. It does not
 yet prove MCP tool authorization; that proof is added after the recruiting
-contracts and `fillmore_schedule_screen` tool are frozen.
+contracts and `recruiting_schedule_screen` tool are frozen.
 
 ## 1. Copy the generated values
 
@@ -80,8 +80,8 @@ After the recruiting MCP endpoint exists, configure identity-specific service
 accounts and tool allowlists so the same request produces different decisions:
 
 ```text
-fillmore-sourcer  -> fillmore_schedule_screen -> DENY
-hiring-controller -> fillmore_schedule_screen -> ALLOW
+outbound-sourcer  -> recruiting_schedule_screen -> DENY
+hiring-controller -> recruiting_schedule_screen -> ALLOW
 ```
 
 Keep positive identity checks under `allow`. Put `mcp_tool.not_in` allowlists

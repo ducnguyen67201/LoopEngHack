@@ -1,5 +1,5 @@
 export const pomeriumMachineIdentities = [
-  'fillmore-sourcer',
+  'outbound-sourcer',
   'white-verifier',
   'hiring-controller',
 ] as const;

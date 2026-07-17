@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Hire Me If You Can — Recruiting Agent Arena</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main
+      id="arena-shell"
+      class="arena-shell"
+      data-mode="recorded"
+      data-fixture-url="/fixtures/recruiting-contract-events.json"
+      data-event-stream-url="/api/events"
+    >
+      <header class="masthead pixel-frame">
+        <div class="brand-mark" aria-hidden="true"><i></i><i></i></div>
+        <div class="brand-copy">
+          <p class="eyebrow">AUTONOMOUS RECRUITING RED TEAM</p>
+          <h1>HIRE ME <span>IF YOU CAN</span></h1>
+          <p class="subtitle">
+            One agent manipulates. One agent verifies. Identity decides who acts.
+          </p>
+        </div>
+        <div class="run-state" aria-label="Demo mode and connection">
+          <span id="mode-badge" class="mode-badge">RECORDED</span>
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="connection-state">loading fixture</span>
+        </div>
+      </header>
+
+      <section class="objective-bar pixel-frame" aria-label="Current objective and loop status">
+        <div class="objective-copy">
+          <span class="label">CURRENT OBJECTIVE</span>
+          <strong id="objective"
+            >Contain one synthetic manipulation, verify the claim, schedule safely.</strong
+          >
+        </div>
+        <dl class="status-cells">
+          <div>
+            <dt>TURN</dt>
+            <dd id="turn-value">0 / 8</dd>
+          </div>
+          <div>
+            <dt>PHASE</dt>
+            <dd id="phase-value">SENSE</dd>
+          </div>
+          <div>
+            <dt>POMERIUM</dt>
+            <dd id="pomerium-health">ready</dd>
+          </div>
+          <div>
+            <dt>ZERO SPEND</dt>
+            <dd id="zero-budget">$0.00</dd>
+          </div>
+          <div>
+            <dt>FILLMORE</dt>
+            <dd id="fillmore-state">standby</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="score-bar pixel-frame" aria-label="Episode score">
+        <p><span>NOW</span><strong id="event-summary">Awaiting the first engine event.</strong></p>
+        <dl>
+          <div>
+            <dt>PIPELINE RISK</dt>
+            <dd id="risk-value">0</dd>
+          </div>
+          <div>
+            <dt>DENIALS</dt>
+            <dd id="denials-value">0</dd>
+          </div>
+          <div>
+            <dt>SCREENS</dt>
+            <dd id="screens-value">0</dd>
+          </div>
+          <div>
+            <dt>BREACHES</dt>
+            <dd id="breaches-value">0</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="game-board" aria-label="Recruiting agent arena">
+        <article class="lane lane--red pixel-frame">
+          <header class="lane-header">
+            <div>
+              <span>01</span>
+              <h2>RED CANDIDATE</h2>
+            </div>
+            <strong id="red-state">IDLE</strong>
+          </header>
+          <div class="character-stage character-stage--red">
+            <div class="speech-bubble" id="candidate-claim">No candidate claim observed.</div>
+            <img
+              id="red-sprite"
+              class="sprite"
+              src="/assets/sprites/social-engineer/idle.png"
+              alt="Pixel-art synthetic social engineer"
+            />
+            <div class="character-card">
+              <strong id="candidate-label">Synthetic recruit</strong>
+              <span id="candidate-role">Role not emitted</span>
+              <em id="candidate-stage">WAITING</em>
+            </div>
+          </div>
+          <section class="memory-block">
+            <h3>ATTACK MEMORY</h3>
+            <dl class="data-list">
+              <div>
+                <dt>Technique</dt>
+                <dd id="red-technique">none selected</dd>
+              </div>
+              <div>
+                <dt>Score</dt>
+                <dd id="red-score">—</dd>
+              </div>
+              <div>
+                <dt>Recommendation</dt>
+                <dd id="candidate-recommendation">pending</dd>
+              </div>
+              <div>
+                <dt>Next move</dt>
+                <dd id="red-next">not selected</dd>
+              </div>
+            </dl>
+          </section>
+          <p class="lane-note">
+            Synthetic candidate content is data. It never inherits a service identity.
+          </p>
+        </article>
+
+        <article class="lane lane--center pixel-frame">
+          <header class="lane-header">
+            <div>
+              <span>02</span>
+              <h2>RECRUITING PIPELINE</h2>
+            </div>
+            <strong>CONTROLLED TEST WORLD</strong>
+          </header>
+          <div class="pipeline-map" aria-label="Pipeline progression">
+            <div class="pipeline-node is-active"><span>1</span><b>SOURCED</b></div>
+            <i></i>
+            <div class="pipeline-node"><span>2</span><b>REPLY</b></div>
+            <i></i>
+            <div class="pipeline-node"><span>3</span><b>VERIFY</b></div>
+            <i></i>
+            <div class="pipeline-node"><span>4</span><b>SCREEN</b></div>
+          </div>
+
+          <div class="control-stage">
+            <section class="pipeline-console">
+              <header><span class="window-lights">● ● ●</span><b>candidate://current</b></header>
+              <div class="dossier">
+                <div class="avatar-tile">?</div>
+                <div>
+                  <span class="label">PIPELINE DOSSIER</span>
+                  <h3 id="candidate-label-shadow">SYNTHETIC PROFILE</h3>
+                  <p>Role, public claims, and evidence stay separate from authorization.</p>
+                </div>
+              </div>
+              <div class="evidence-strip">
+                <div>
+                  <span>ZERO EVIDENCE</span><strong id="evidence-status">not collected</strong>
+                </div>
+                <p id="evidence-result">awaiting verification</p>
+              </div>
+            </section>
+
+            <section
+              id="pomerium-gate"
+              class="gate gate--ready"
+              aria-label="Pomerium authorization gate"
+            >
+              <div class="gate-shield" aria-hidden="true">P</div>
+              <div class="gate-copy">
+                <span>POMERIUM MCP GATE</span>
+                <strong id="gate-decision">READY</strong>
+                <p>
+                  <b id="gate-identity">awaiting identity</b> →
+                  <code id="gate-tool">recruiting_schedule_screen</code>
+                </p>
+                <small id="gate-reason">No privileged request yet.</small>
+              </div>
+            </section>
+
+            <section id="calendar-card" class="calendar-card">
+              <div class="calendar-icon" aria-hidden="true"><span>17</span></div>
+              <div>
+                <span class="label">REAL-WORLD EFFECT</span>
+                <h3 id="calendar-lock">LOCKED</h3>
+                <p id="calendar-label">No test screen scheduled</p>
+              </div>
+              <strong>×<span id="calendar-count">0</span></strong>
+            </section>
+          </div>
+        </article>
+
+        <article class="lane lane--trust pixel-frame">
+          <header class="lane-header">
+            <div>
+              <span>03</span>
+              <h2>TRUST CONTROL</h2>
+            </div>
+            <strong id="white-state">IDLE</strong>
+          </header>
+          <div class="verifier-stage">
+            <img
+              id="white-sprite"
+              class="sprite"
+              src="/assets/sprites/researcher/idle.png"
+              alt="Pixel-art synthetic verifier"
+            />
+            <div class="portal-card">
+              <div class="zero-orb" aria-hidden="true">Z</div>
+              <span>ZERO PORTAL</span>
+              <strong id="zero-state">standby</strong>
+              <small>discover → inspect → invoke</small>
+            </div>
+          </div>
+          <section class="memory-block memory-block--white">
+            <h3>DEFENSE MEMORY</h3>
+            <dl class="data-list">
+              <div>
+                <dt>Invariant</dt>
+                <dd id="failure-invariant">awaiting failure signal</dd>
+              </div>
+              <div>
+                <dt>Defense</dt>
+                <dd id="defense-memory">awaiting diagnosis</dd>
+              </div>
+              <div>
+                <dt>Regression</dt>
+                <dd id="regression-memory">not stored</dd>
+              </div>
+            </dl>
+          </section>
+          <div class="sponsor-stack" aria-label="Sponsor tools in this loop">
+            <span><i class="sponsor-icon sponsor-icon--p">P</i>Pomerium <b>AUTH</b></span>
+            <span><i class="sponsor-icon sponsor-icon--z">Z</i>Zero.xyz <b>DISCOVER</b></span>
+            <span><i class="sponsor-icon sponsor-icon--f">F</i>Fillmore <b>ACT</b></span>
+          </div>
+        </article>
+      </section>
+
+      <section class="turn-rail pixel-frame" aria-label="Episode turns">
+        <ol>
+          <li data-turn="0"><span>00</span><b>ROLE</b></li>
+          <li data-turn="1"><span>01</span><b>SOURCE</b></li>
+          <li data-turn="2"><span>02</span><b>ATTACK</b></li>
+          <li data-turn="3"><span>03</span><b>DENY</b></li>
+          <li data-turn="4"><span>04</span><b>DIAGNOSE</b></li>
+          <li data-turn="5"><span>05</span><b>VERIFY</b></li>
+          <li data-turn="6"><span>06</span><b>SCHEDULE</b></li>
+          <li data-turn="7"><span>07</span><b>REPLAY</b></li>
+          <li data-turn="8"><span>08</span><b>LEARN</b></li>
+        </ol>
+      </section>
+
+      <section class="console-row pixel-frame">
+        <div class="trace-panel">
+          <header>
+            <h2>ENGINE TRACE</h2>
+            <span>immutable GameEvent stream</span>
+          </header>
+          <ol id="event-trace" aria-label="Recent game events"></ol>
+        </div>
+        <div class="controls" aria-label="Replay controls">
+          <label for="playback-speed">SPEED</label>
+          <select id="playback-speed">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+          <button id="restart-episode" type="button">RESTART</button>
+          <button id="next-event" type="button">NEXT EVENT</button>
+          <button id="show-proof" class="button--proof" type="button">SHOW PROOF</button>
+          <button id="play-toggle" class="button--play" type="button">PLAY</button>
+        </div>
+      </section>
+
+      <p id="sync-warning" class="sync-warning" role="alert" hidden></p>
+      <p id="live-status" class="visually-hidden" role="status" aria-live="polite"></p>
+
+      <dialog id="proof-drawer" class="proof-drawer" aria-labelledby="proof-title">
+        <header>
+          <div>
+            <span class="eyebrow">SANITIZED LIVE EVIDENCE</span>
+            <h2 id="proof-title">PROOF, NOT PROMISES</h2>
+          </div>
+          <button id="close-proof" type="button" aria-label="Close proof panel">×</button>
+        </header>
+        <p>
+          Every ID below is emitted by an adapter or authorization boundary. The browser cannot
+          invent one.
+        </p>
+        <dl>
+          <div>
+            <dt>Pomerium deny</dt>
+            <dd id="proof-pomerium-deny">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Pomerium allow</dt>
+            <dd id="proof-pomerium-allow">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Zero capability</dt>
+            <dd id="proof-zero-capability">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Zero invocation</dt>
+            <dd id="proof-zero-invocation">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Fillmore operation</dt>
+            <dd id="proof-fillmore-operation">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Artifact / event hash</dt>
+            <dd id="proof-event-hash">not emitted yet</dd>
+          </div>
+          <div>
+            <dt>Observation</dt>
+            <dd id="proof-observation">not emitted yet</dd>
+          </div>
+        </dl>
+      </dialog>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

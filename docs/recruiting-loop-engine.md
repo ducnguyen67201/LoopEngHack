@@ -23,15 +23,15 @@ The existing project contracts describe the earlier web-security CTF. They must 
 
 ## Actors
 
-| Actor | Game character | Objective | Authority |
-| --- | --- | --- | --- |
-| Red Candidate | Shapeshifting applicant | Reach the screen stage using a bounded manipulation family | Submit synthetic candidate content only |
-| Fillmore Sourcer | Recruiter bot | Build and engage a test pipeline from a role brief | Source, research, draft, and send test outreach |
-| White Verifier | Trust analyst | Produce independent evidence and learn regressions | Read cases and call allowlisted Zero verification capabilities |
-| Hiring Controller | Hiring manager | Perform evidence-backed pipeline actions | Schedule a test screen after server-side evidence validation |
-| Pomerium Gate | Castle gatekeeper | Enforce machine identity/tool separation | Allow or deny MCP `tools/call` |
-| Zero Portal | Capability merchant | Discover and activate bounded external verification tools | Return capability metadata and results through an allowlisted adapter |
-| Arena Engine | Dungeon master | Own state, turns, observations, scoring, and termination | Orchestrate only; no sponsor credentials in the browser |
+| Actor             | Game character          | Objective                                                  | Authority                                                             |
+| ----------------- | ----------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| Red Candidate     | Shapeshifting applicant | Reach the screen stage using a bounded manipulation family | Submit synthetic candidate content only                               |
+| Fillmore Sourcer  | Recruiter bot           | Build and engage a test pipeline from a role brief         | Source, research, draft, and send test outreach                       |
+| White Verifier    | Trust analyst           | Produce independent evidence and learn regressions         | Read cases and call allowlisted Zero verification capabilities        |
+| Hiring Controller | Hiring manager          | Perform evidence-backed pipeline actions                   | Schedule a test screen after server-side evidence validation          |
+| Pomerium Gate     | Castle gatekeeper       | Enforce machine identity/tool separation                   | Allow or deny MCP `tools/call`                                        |
+| Zero Portal       | Capability merchant     | Discover and activate bounded external verification tools  | Return capability metadata and results through an allowlisted adapter |
+| Arena Engine      | Dungeon master          | Own state, turns, observations, scoring, and termination   | Orchestrate only; no sponsor credentials in the browser               |
 
 The candidate is not a Pomerium service identity. Untrusted candidate content can influence an agent's reasoning, but it can never inherit that agent's credential.
 
@@ -80,7 +80,7 @@ The coordinator, not an LLM and not the browser, advances the state machine.
 
 ### Turn 3 — Privileged action contained
 
-- The sourcing identity requests `fillmore_schedule_screen` because the candidate reply told it to skip verification.
+- The sourcing identity requests `recruiting_schedule_screen` because the candidate reply told it to skip verification.
 - Pomerium denies the request: the Sourcer identity cannot schedule.
 - No calendar action occurs.
 - The engine stores the failure invariant: candidate-provided authority was treated as trusted evidence.
@@ -102,7 +102,7 @@ The coordinator, not an LLM and not the browser, advances the state machine.
 ### Turn 6 — Legitimate action succeeds
 
 - A legitimate controlled candidate passes the same checks.
-- Hiring Controller requests `fillmore_schedule_screen` with only candidate and evidence IDs.
+- Hiring Controller requests `recruiting_schedule_screen` with only candidate and evidence IDs.
 - Pomerium allows the Controller identity.
 - Application code revalidates evidence.
 - Fillmore schedules a meeting on the team-controlled test calendar.
@@ -125,10 +125,7 @@ The coordinator, not an LLM and not the browser, advances the state machine.
 
 ```ts
 type CandidateAttackFamily =
-  | 'authority_spoof'
-  | 'urgency_pressure'
-  | 'portfolio_prompt_injection'
-  | 'credential_mismatch';
+  'authority_spoof' | 'urgency_pressure' | 'portfolio_prompt_injection' | 'credential_mismatch';
 ```
 
 Allowed actions:
@@ -144,12 +141,12 @@ Inputs are template IDs and synthetic candidate IDs. Red cannot choose a recipie
 
 Allowed actions:
 
-- `fillmore_create_test_role`
-- `fillmore_source_test_candidates`
-- `fillmore_draft_test_outreach`
-- `fillmore_send_test_outreach`
-- `fillmore_read_pipeline_event`
-- `fillmore_request_screen`
+- `recruiting_create_test_role`
+- `recruiting_source_test_candidates`
+- `recruiting_draft_test_outreach`
+- `recruiting_send_test_outreach`
+- `recruiting_read_pipeline_event`
+- `recruiting_request_screen`
 
 The last action is a request, not direct calendar authority.
 
@@ -176,30 +173,30 @@ The Zero adapter maps the need to sponsor-confirmed, allowlisted capability IDs 
 Allowed actions:
 
 - `evidence_read`
-- `fillmore_schedule_screen`
+- `recruiting_schedule_screen`
 - `episode_complete`
 
 Controller accepts IDs only. It loads and validates evidence server-side before scheduling.
 
 ## Pomerium identity/tool matrix
 
-| Tool | Sourcer | Verifier | Controller |
-| --- | :---: | :---: | :---: |
-| `fillmore_create_test_role` | allow | deny | deny |
-| `fillmore_source_test_candidates` | allow | deny | deny |
-| `fillmore_send_test_outreach` | allow | deny | deny |
-| `case_read` | allow | allow | allow |
-| `zero_discover_verifier` | deny | allow | deny |
-| `zero_run_verifier` | deny | allow | deny |
-| `evidence_submit` | deny | allow | deny |
-| `fillmore_schedule_screen` | **deny** | **deny** | allow |
-| `episode_complete` | deny | deny | allow |
+| Tool                                | Sourcer  | Verifier | Controller |
+| ----------------------------------- | :------: | :------: | :--------: |
+| `recruiting_create_test_role`       |  allow   |   deny   |    deny    |
+| `recruiting_source_test_candidates` |  allow   |   deny   |    deny    |
+| `recruiting_send_test_outreach`     |  allow   |   deny   |    deny    |
+| `case_read`                         |  allow   |  allow   |   allow    |
+| `zero_discover_verifier`            |   deny   |  allow   |    deny    |
+| `zero_run_verifier`                 |   deny   |  allow   |    deny    |
+| `evidence_submit`                   |   deny   |  allow   |    deny    |
+| `recruiting_schedule_screen`        | **deny** | **deny** |   allow    |
+| `episode_complete`                  |   deny   |   deny   |   allow    |
 
 The most important visual comparison uses the same tool:
 
 ```text
-Sourcer identity    → fillmore_schedule_screen → DENY
-Controller identity → fillmore_schedule_screen → ALLOW
+Sourcer identity    → recruiting_schedule_screen → DENY
+Controller identity → recruiting_schedule_screen → ALLOW
 ```
 
 Pomerium proves who may request scheduling. The application separately proves that the referenced evidence is valid.
@@ -235,12 +232,7 @@ interface Observation {
     safeRetry: string | null;
     stopCondition: string;
   };
-  provenance:
-    | 'fillmore'
-    | 'zero'
-    | 'pomerium-authorize-log'
-    | 'controller'
-    | 'test-world';
+  provenance: 'fillmore' | 'zero' | 'pomerium-authorize-log' | 'controller' | 'test-world';
   occurredAt: string;
 }
 ```
@@ -294,7 +286,7 @@ Required event kinds:
 - `evidence_submitted`
 - `screen_scheduled`
 - `regression_stored`
-- `replay_result`
+- `replay_blocked`
 - `memory_updated`
 - `episode_completed`
 - `error`
@@ -414,7 +406,7 @@ Stop immediately on:
 ## Adapter boundaries
 
 ```ts
-interface FillmorePort {
+interface RecruitingOpsPort {
   createTestRole(input: CreateTestRoleInput): Promise<Observation>;
   sourceTestCandidates(input: SourceTestCandidatesInput): Promise<Observation>;
   sendTestOutreach(input: SendTestOutreachInput): Promise<Observation>;
@@ -444,14 +436,14 @@ Fillmore's exact adapter depends on hackathon-provided API, MCP, webhook, Slack,
 
 Characters do not decide anything. They are finite visual state machines driven by `visualCue`:
 
-| Entity | Required visual states |
-| --- | --- |
-| Red Candidate | `idle`, `compose`, `attack`, `celebrate`, `mutate`, `caught` |
-| Fillmore Sourcer | `idle`, `search`, `research`, `write`, `send`, `request` |
-| White Verifier | `idle`, `observe`, `diagnose`, `discover`, `verify`, `learn` |
-| Hiring Controller | `idle`, `review`, `request`, `schedule`, `success` |
-| Pomerium Gate | `ready`, `scan`, `allow`, `deny` |
-| Zero Portal | `closed`, `search`, `reveal`, `invoke`, `result` |
+| Entity            | Required visual states                                       |
+| ----------------- | ------------------------------------------------------------ |
+| Red Candidate     | `idle`, `compose`, `attack`, `celebrate`, `mutate`, `caught` |
+| Fillmore Sourcer  | `idle`, `search`, `research`, `write`, `send`, `request`     |
+| White Verifier    | `idle`, `observe`, `diagnose`, `discover`, `verify`, `learn` |
+| Hiring Controller | `idle`, `review`, `request`, `schedule`, `success`           |
+| Pomerium Gate     | `ready`, `scan`, `allow`, `deny`                             |
+| Zero Portal       | `closed`, `search`, `reveal`, `invoke`, `result`             |
 
 Initial sprite contract:
 
@@ -501,7 +493,7 @@ Every animation and metric is derived from the latest state plus ordered `GameEv
 
 Before generating character art, migrate the project contract kit:
 
-1. Replace cyber-target schemas with recruiting engine schemas.
+1. Maintain the recruiting schemas as the only runtime contract.
 2. Define the Observation and GameEvent contracts.
 3. Define actor-specific tool maps and adapter ports.
 4. Create a synthetic turns 0–8 fixture for the recruiting story.

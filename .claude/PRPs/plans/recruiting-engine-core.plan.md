@@ -38,7 +38,7 @@ Implement the deterministic episode in `docs/recruiting-loop-engine.md`:
 
 Define strict enums for:
 
-- `ActorId`: `red-candidate`, `fillmore-sourcer`, `white-verifier`, `hiring-controller`, `arena`.
+- `ActorId`: `red-candidate`, `outbound-sourcer`, `white-verifier`, `hiring-controller`, `arena`.
 - `LoopPhase`: `sense`, `plan`, `request`, `authorize`, `execute`, `observe`, `learn`.
 - `ObservationStatus`: `success`, `warning`, `error`.
 - `ErrorCategory`: `authorization_denied`, `capability_unavailable`, `invalid_evidence`, `upstream_failure`, `budget_exceeded`, `contract_violation`.
@@ -107,11 +107,14 @@ Use deterministic numeric weights in one named policy object so tests can assert
 Replace the old generic CTF ports with explicit ports:
 
 ```ts
-interface FillmorePort {
+interface RecruitingOpsPort {
   createRole(input: CreateRoleCommand, context: ExecutionContext): Promise<Observation>;
   sourceCandidates(input: SourceCandidatesCommand, context: ExecutionContext): Promise<Observation>;
   sendOutreach(input: SendOutreachCommand, context: ExecutionContext): Promise<Observation>;
-  readCandidateEvent(input: ReadCandidateEventCommand, context: ExecutionContext): Promise<Observation>;
+  readCandidateEvent(
+    input: ReadCandidateEventCommand,
+    context: ExecutionContext,
+  ): Promise<Observation>;
   scheduleScreen(input: ScheduleScreenCommand, context: ExecutionContext): Promise<Observation>;
 }
 
@@ -125,15 +128,15 @@ interface PolicyPort {
 }
 ```
 
-Also retain `EventSink`, `Clock`, and `IdGenerator`. Commands must be strict discriminated unions with stable tool names. `scheduleScreen` must map to exactly one MCP tool name, `fillmore_schedule_screen`, so the Pomerium deny/allow proof cannot accidentally compare different operations.
+Also retain `EventSink`, `Clock`, and `IdGenerator`. Commands must be strict discriminated unions with stable tool names. `scheduleScreen` must map to exactly one MCP tool name, `recruiting_schedule_screen`, so the Pomerium deny/allow proof cannot accidentally compare different operations.
 
 ## Actor tool maps
 
 Commit an immutable typed map:
 
-- `fillmore-sourcer`: create role, source, outreach, read candidate event; may request but not directly execute `fillmore_schedule_screen`.
+- `outbound-sourcer`: create role, source, outreach, read candidate event; may request but not directly execute `recruiting_schedule_screen`.
 - `white-verifier`: case read, Zero discover/invoke, evidence submit, regression store.
-- `hiring-controller`: evidence read, `fillmore_schedule_screen`, episode complete.
+- `hiring-controller`: evidence read, `recruiting_schedule_screen`, episode complete.
 - `red-candidate`: emits only synthetic candidate content/techniques; no sponsor tool credentials.
 
 The engine should reject commands outside the actor’s declared set before invoking a port. Pomerium remains the external enforcement layer for MCP calls; the local check is a contract guard, not the demo’s authorization proof.
