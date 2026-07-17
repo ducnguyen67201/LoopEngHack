@@ -4,7 +4,8 @@ export const RED_SCORE_WEIGHTS = Object.freeze({
   successReward: 5,
   novelty: 2,
   bypassDepth: 3,
-  detectionPenalty: 5,
+  // A contained family must become less attractive than an untouched one.
+  detectionPenalty: 12,
   cost: 1,
 });
 

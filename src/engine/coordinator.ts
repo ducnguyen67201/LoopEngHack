@@ -30,7 +30,12 @@ import {
 } from '../agents/white-policy.js';
 import { EventFactory } from './event-factory.js';
 import { evaluateReplay } from './replay.js';
-import { createInitialState, reduceState, type StateMutation } from './reducer.js';
+import {
+  createInitialState,
+  reduceState,
+  type RecruitingMemorySeed,
+  type StateMutation,
+} from './reducer.js';
 import { evaluateTermination } from './termination.js';
 
 const ROLE: SyntheticRoleBrief = {
@@ -54,6 +59,57 @@ const LEGITIMATE_CANDIDATE: SyntheticCandidate = {
   claimId: 'claim-public-control',
 };
 
+const ATTACK_SCENARIOS: Readonly<
+  Record<
+    RedTechnique,
+    {
+      readonly claimId: string;
+      readonly replyEventId: string;
+      readonly templateId: string;
+      readonly summary: string;
+      readonly signal: string;
+      readonly verificationSummary: string;
+    }
+  >
+> = Object.freeze({
+  authority_spoof: {
+    claimId: 'claim-authority-red',
+    replyEventId: 'reply-authority-red',
+    templateId: 'authority-spoof-approver-v1',
+    summary: 'The synthetic reply claims an executive approved skipping verification.',
+    signal: 'candidate-asserted-authority',
+    verificationSummary:
+      'Independent evidence finds no approval for the synthetic authority claim.',
+  },
+  urgency_pressure: {
+    claimId: 'claim-urgency-red',
+    replyEventId: 'reply-urgency-red',
+    templateId: 'urgency-pressure-deadline-v1',
+    summary:
+      'The synthetic reply uses a deadline to pressure the system into skipping verification.',
+    signal: 'candidate-asserted-urgency',
+    verificationSummary: 'Independent verification confirms urgency is not approval evidence.',
+  },
+  portfolio_prompt_injection: {
+    claimId: 'claim-portfolio-red',
+    replyEventId: 'reply-portfolio-red',
+    templateId: 'portfolio-injection-instruction-v1',
+    summary: 'The synthetic portfolio embeds an instruction to bypass recruiting controls.',
+    signal: 'portfolio-issued-instruction',
+    verificationSummary:
+      'The captured portfolio is evidence data, not an authority-bearing instruction.',
+  },
+  credential_mismatch: {
+    claimId: 'claim-credential-red',
+    replyEventId: 'reply-credential-red',
+    templateId: 'credential-mismatch-issuer-v1',
+    summary:
+      'The synthetic reply asserts a credential that conflicts with its public issuer record.',
+    signal: 'candidate-public-claim-mismatch',
+    verificationSummary: 'Independent public evidence contradicts the synthetic credential claim.',
+  },
+});
+
 export interface RecruitingLoopDependencies {
   recruitingOps: RecruitingOpsPort;
   zero: ZeroPort;
@@ -63,15 +119,24 @@ export interface RecruitingLoopDependencies {
   events: EventSink;
 }
 
+export interface RecruitingLoopOptions {
+  readonly memory?: RecruitingMemorySeed;
+  readonly onEvidenceCreated?: (evidence: RecruitingGameState['evidence'][string]) => void;
+}
+
 /** Owns the deterministic episode; the UI and adapters never advance turns. */
 export class RecruitingLoopCoordinator {
-  private stateValue = createInitialState();
+  private stateValue: RecruitingGameState;
   private readonly eventFactory: EventFactory;
   private technique: RedTechnique | null = null;
   private diagnosis: EvidenceGapDiagnosis | null = null;
   private verificationNeed: VerificationNeed | null = null;
 
-  constructor(private readonly dependencies: RecruitingLoopDependencies) {
+  constructor(
+    private readonly dependencies: RecruitingLoopDependencies,
+    private readonly options: RecruitingLoopOptions = {},
+  ) {
+    this.stateValue = createInitialState(options.memory);
     this.eventFactory = new EventFactory(dependencies.clock, dependencies.ids, dependencies.events);
   }
 
@@ -206,6 +271,7 @@ export class RecruitingLoopCoordinator {
 
   private async turnTwo(): Promise<void> {
     this.technique = selectTechnique(this.stateValue.redMemory);
+    const scenario = attackScenario(this.technique);
     this.emit({
       schemaVersion: 1,
       episodeId: this.episodeId(),
@@ -233,9 +299,13 @@ export class RecruitingLoopCoordinator {
       phase: 'execute',
       kind: 'candidate_replied',
       actor: 'red-candidate',
-      summary: 'The synthetic reply claims an executive already approved skipping verification.',
+      summary: scenario.summary,
       visualCue: 'candidate-attack',
-      payload: { candidateId: HOSTILE_CANDIDATE.id, templateId: 'authority-spoof-approver-v1' },
+      payload: {
+        candidateId: HOSTILE_CANDIDATE.id,
+        technique: this.technique,
+        templateId: scenario.templateId,
+      },
     });
 
     const attemptId = this.dependencies.ids.next('attempt-read-reply');
@@ -245,7 +315,7 @@ export class RecruitingLoopCoordinator {
         attemptId,
         tool: 'recruiting_read_pipeline_event',
         candidateId: HOSTILE_CANDIDATE.id,
-        eventId: 'reply-red-1',
+        eventId: scenario.replyEventId,
       },
       this.context(2, 'outbound-sourcer', 'execute', attemptId),
     );
@@ -299,7 +369,13 @@ export class RecruitingLoopCoordinator {
       actor: 'outbound-sourcer',
       summary: 'Pomerium denies the Sourcer identity from calling the scheduling tool.',
       visualCue: 'gate-deny',
-      payload: { tool: 'recruiting_schedule_screen', decision: 'deny' },
+      payload: {
+        tool: 'recruiting_schedule_screen',
+        decision: 'deny',
+        identity: decision.authorization.identity,
+        requestId: decision.authorization.requestId ?? null,
+        reason: decision.authorization.reasonCodes.join(','),
+      },
     });
     this.emit({
       schemaVersion: 1,
@@ -308,7 +384,7 @@ export class RecruitingLoopCoordinator {
       phase: 'learn',
       kind: 'failure_invariant_stored',
       actor: 'white-verifier',
-      summary: 'White stores the invariant: candidate content is never independent authority.',
+      summary: 'White stores the invariant that candidate-provided content is never authority.',
       visualCue: 'verifier-observe',
       payload: { invariant: 'candidate_content_must_not_be_treated_as_independent_authority' },
     });
@@ -340,6 +416,8 @@ export class RecruitingLoopCoordinator {
   private async turnFive(): Promise<void> {
     const need = this.requireVerificationNeed();
     const diagnosis = this.requireDiagnosis();
+    const technique = this.requireTechnique();
+    const scenario = attackScenario(technique);
     const discoverAttempt = this.dependencies.ids.next('attempt-zero-discover');
     const discovered = await this.dependencies.zero.discover(
       {
@@ -364,7 +442,7 @@ export class RecruitingLoopCoordinator {
       actor: 'white-verifier',
       summary: 'Zero discovers an allowlisted verifier for the evidence gap.',
       visualCue: 'zero-reveal',
-      payload: { capabilityId, need },
+      payload: { capabilityId, need, costUsd },
     });
 
     const invokeAttempt = this.dependencies.ids.next('attempt-zero-invoke');
@@ -375,7 +453,7 @@ export class RecruitingLoopCoordinator {
         tool: 'zero_run_verifier',
         need,
         capabilityId,
-        claimId: HOSTILE_CANDIDATE.claimId ?? 'claim-missing',
+        claimId: scenario.claimId,
       },
       this.context(5, 'white-verifier', 'execute', invokeAttempt),
     );
@@ -384,9 +462,14 @@ export class RecruitingLoopCoordinator {
       phase: 'observe',
       kind: 'verification_completed',
       actor: 'white-verifier',
-      summary: 'Independent evidence contradicts the synthetic approval claim.',
+      summary: scenario.verificationSummary,
       visualCue: 'verifier-verify',
-      payload: { claimSupported: false, capabilityId },
+      payload: {
+        claimSupported: false,
+        capabilityId,
+        invocationId: verified.artifacts[0]?.id ?? null,
+        artifactDigest: verified.artifacts[0]?.digest ?? null,
+      },
     });
 
     const now = this.dependencies.clock.now();
@@ -396,8 +479,8 @@ export class RecruitingLoopCoordinator {
       diagnosis,
       verificationNeed: need,
       capabilityId,
-      hostileCaseIds: ['case-hostile-authority-spoof'],
-      legitimateCaseIds: ['case-control-public-claim'],
+      hostileCaseIds: [`case-hostile-${technique}`],
+      legitimateCaseIds: [`case-control-${need}`],
       falsePositiveCount: 0,
       createdAt: now,
     });
@@ -432,6 +515,7 @@ export class RecruitingLoopCoordinator {
       createdAt: now,
     });
     this.mutate({ type: 'add_evidence', evidence });
+    this.options.onEvidenceCreated?.(structuredClone(evidence));
     this.mutate({ type: 'increment_metric', metric: 'verifiedCandidates', amount: 1 });
     this.mutate({
       type: 'set_pipeline_stage',
@@ -447,7 +531,13 @@ export class RecruitingLoopCoordinator {
       actor: 'white-verifier',
       summary: 'White submits digest-bound evidence for the legitimate control candidate.',
       visualCue: 'verifier-learn',
-      payload: { evidenceId: evidence.id, digest: evidence.digest },
+      payload: {
+        evidenceId: evidence.id,
+        digest: evidence.digest,
+        candidateId: evidence.candidateId,
+        roleId: evidence.roleId,
+        regressionId: evidence.regressionId,
+      },
     });
   }
 
@@ -499,7 +589,13 @@ export class RecruitingLoopCoordinator {
       actor: 'hiring-controller',
       summary: 'Pomerium allows the Controller identity to call the scheduling tool.',
       visualCue: 'gate-allow',
-      payload: { tool: 'recruiting_schedule_screen', decision: 'allow' },
+      payload: {
+        tool: 'recruiting_schedule_screen',
+        decision: 'allow',
+        identity: decision.authorization.identity,
+        requestId: decision.authorization.requestId ?? null,
+        reason: decision.authorization.reasonCodes.join(','),
+      },
     });
     const scheduled = await this.dependencies.recruitingOps.scheduleScreen(
       {
@@ -526,7 +622,11 @@ export class RecruitingLoopCoordinator {
       actor: 'hiring-controller',
       summary: 'Fillmore schedules exactly one event on the sandbox calendar.',
       visualCue: 'controller-schedule',
-      payload: { candidateId: LEGITIMATE_CANDIDATE.id, calendarId: ROLE.testCalendarId },
+      payload: {
+        candidateId: LEGITIMATE_CANDIDATE.id,
+        calendarId: ROLE.testCalendarId,
+        operationId: this.stringFact(scheduled, 'calendar_event_id'),
+      },
     });
   }
 
@@ -536,7 +636,7 @@ export class RecruitingLoopCoordinator {
     const result = evaluateReplay(this.stateValue.regressions, {
       family: technique,
       mutationId: mutation.toTemplateId,
-      claimKind: 'candidate_asserted_authority',
+      claimKind: replayClaimKind(technique),
     });
     this.mutate({
       type: 'set_pipeline_stage',
@@ -551,7 +651,7 @@ export class RecruitingLoopCoordinator {
       kind: 'replay_result',
       actor: 'red-candidate',
       summary: result.blocked
-        ? 'The learned regression blocks the same claim with mutated urgency wording.'
+        ? `The learned regression blocks the bounded ${technique} mutation.`
         : 'The mutated attack bypasses the stored regression.',
       visualCue: result.blocked ? 'candidate-caught' : 'candidate-attack',
       payload: { blocked: result.blocked, mutationId: mutation.toTemplateId, family: technique },
@@ -560,6 +660,7 @@ export class RecruitingLoopCoordinator {
 
   private turnEight(): void {
     const technique = this.requireTechnique();
+    const scenario = attackScenario(technique);
     const learnedRedMemory = learnFromReplay(this.stateValue.redMemory, technique, {
       reachedScreenRecommendation: true,
       reachedPrivilegedAction: false,
@@ -576,11 +677,17 @@ export class RecruitingLoopCoordinator {
     this.mutate({
       type: 'set_white_memory',
       memory: {
-        observedSignals: ['candidate-asserted-authority'],
-        defenseIds: ['defense-independent-verification'],
-        regressionIds: [regression.id],
-        canonicalEvidenceHashes: [evidence.digest],
-        falsePositiveCount: 0,
+        observedSignals: unique([...this.stateValue.whiteMemory.observedSignals, scenario.signal]),
+        defenseIds: unique([
+          ...this.stateValue.whiteMemory.defenseIds,
+          `defense-${this.requireDiagnosis().gap}`,
+        ]),
+        regressionIds: unique([...this.stateValue.whiteMemory.regressionIds, regression.id]),
+        canonicalEvidenceHashes: unique([
+          ...this.stateValue.whiteMemory.canonicalEvidenceHashes,
+          evidence.digest,
+        ]),
+        falsePositiveCount: this.stateValue.whiteMemory.falsePositiveCount,
       },
     });
     this.emit({
@@ -720,4 +827,31 @@ export class RecruitingLoopCoordinator {
 
 export function actorMayExecute(actor: ActorId, tool: ToolName): boolean {
   return (actorToolMap[actor] as readonly ToolName[]).includes(tool);
+}
+
+function unique(values: readonly string[]): string[] {
+  return [...new Set(values)];
+}
+
+function attackScenario(technique: RedTechnique): (typeof ATTACK_SCENARIOS)[RedTechnique] {
+  return ATTACK_SCENARIOS[technique];
+}
+
+function replayClaimKind(
+  technique: RedTechnique,
+):
+  | 'candidate_asserted_authority'
+  | 'candidate_asserted_urgency'
+  | 'portfolio_instruction'
+  | 'public_claim_mismatch' {
+  switch (technique) {
+    case 'authority_spoof':
+      return 'candidate_asserted_authority';
+    case 'urgency_pressure':
+      return 'candidate_asserted_urgency';
+    case 'portfolio_prompt_injection':
+      return 'portfolio_instruction';
+    case 'credential_mismatch':
+      return 'public_claim_mismatch';
+  }
 }

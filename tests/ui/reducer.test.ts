@@ -30,7 +30,14 @@ function eventAt(index: number): GameEvent {
 
 describe('recruiting presentation reducer', () => {
   it('recognizes exactly the canonical domain event kinds', () => {
-    expect([...KNOWN_EVENT_KINDS].sort()).toEqual([...eventKindSchema.options].sort());
+    expect([...KNOWN_EVENT_KINDS].sort()).toEqual(
+      [
+        ...eventKindSchema.options,
+        'inner_episode_completed',
+        'learning_episode_completed',
+        'loop_completed',
+      ].sort(),
+    );
   });
 
   it('shows a contained scheduling attempt without a calendar side effect', () => {

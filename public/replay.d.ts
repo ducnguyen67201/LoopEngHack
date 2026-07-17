@@ -1,4 +1,4 @@
-import type { GameEvent } from '../src/domain/types.js';
+import type { GameEvent } from './app.js';
 
 export interface EpisodeStartedResponse {
   episodeId: string;

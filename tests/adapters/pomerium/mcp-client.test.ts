@@ -70,7 +70,7 @@ describe('PomeriumMcpClient', () => {
     }
   });
 
-  it('injects the service identity and normalizes an expected Pomerium denial', async () => {
+  it('injects the service identity but does not treat a raw HTTP denial as MCP tool proof', async () => {
     const observedHeaders: Headers[] = [];
     const deniedFetch = vi.fn<typeof globalThis.fetch>((_input, init) => {
       observedHeaders.push(new Headers(init?.headers));
@@ -95,9 +95,9 @@ describe('PomeriumMcpClient', () => {
 
     expect(outcome).toEqual({
       status: 'denied',
-      kind: 'authorization_denied',
+      kind: 'ambiguous_denial',
       requestId: 'request-deny-1',
-      summary: 'Pomerium denied the MCP tool request',
+      summary: 'The protected route denied the request without MCP tool-policy proof',
       retriable: false,
     });
     expect(observedHeaders[0]?.get('authorization')).toBe(authorizationHeader);
@@ -166,7 +166,7 @@ describe('PomeriumMcpClient', () => {
 
     expect(outcome).toEqual({
       status: 'denied',
-      kind: 'authorization_denied',
+      kind: 'tool_denied',
       requestId: 'request-mcp-deny-1',
       summary: 'Pomerium denied the MCP tool request',
       retriable: false,

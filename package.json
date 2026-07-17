@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "demo": "tsx scripts/demo.ts",
     "stream": "tsx src/server/standalone.ts",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "dev": "tsx src/main.ts",
     "simulate": "tsx src/engine/demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

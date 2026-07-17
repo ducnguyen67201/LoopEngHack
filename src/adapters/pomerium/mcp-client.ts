@@ -3,7 +3,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-export type PomeriumMcpFailureKind = 'authorization_denied' | 'upstream_failure' | 'protocol_error';
+export type PomeriumMcpFailureKind =
+  'identity_denied' | 'tool_denied' | 'ambiguous_denial' | 'upstream_failure' | 'protocol_error';
 
 export type PomeriumMcpCallOutcome =
   | {
@@ -58,7 +59,7 @@ function classifyFailure(
     return withOptionalRequestId(
       {
         status: 'denied' as const,
-        kind: 'authorization_denied' as const,
+        kind: 'identity_denied' as const,
         summary: 'Pomerium rejected the service identity',
         retriable: false,
       },
@@ -70,8 +71,8 @@ function classifyFailure(
     return withOptionalRequestId(
       {
         status: 'denied' as const,
-        kind: 'authorization_denied' as const,
-        summary: 'Pomerium denied the MCP tool request',
+        kind: 'ambiguous_denial' as const,
+        summary: 'The protected route denied the request without MCP tool-policy proof',
         retriable: false,
       },
       requestId,
@@ -88,7 +89,7 @@ function classifyFailure(
     return withOptionalRequestId(
       {
         status: 'denied' as const,
-        kind: 'authorization_denied' as const,
+        kind: 'tool_denied' as const,
         summary: 'Pomerium denied the MCP tool request',
         retriable: false,
       },

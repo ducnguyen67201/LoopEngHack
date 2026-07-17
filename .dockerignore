@@ -1,0 +1,10 @@
+.git
+.loop-memory
+.pomerium
+coverage
+dist
+node_modules
+*.log
+*.jwt
+*.pem
+*.key
