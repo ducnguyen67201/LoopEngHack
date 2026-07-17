@@ -1,0 +1,38 @@
+# Merge these identity-scoped routes into the sponsor-provided Pomerium/Zero
+# configuration. Replace every example hostname and user ID before use.
+runtime_flags:
+  mcp: true
+
+authorize_log_fields:
+  - request-id
+  - user
+  - mcp-method
+  - mcp-tool
+
+routes:
+  - name: Recruiting MCP — machine identities
+    from: https://recruiting-mcp.example.pomerium.app
+    to: http://arena:8080/mcp
+    pass_identity_headers: true
+    mcp:
+      server: {}
+    policy:
+      allow:
+        or:
+          - user:
+              is: outbound-sourcer-service
+          - user:
+              is: hiring-controller-service
+      deny:
+        or:
+          - and:
+              - user:
+                  is: outbound-sourcer-service
+              - mcp_tool:
+                  is: recruiting_schedule_screen
+          - and:
+              - user:
+                  is: hiring-controller-service
+              - mcp_tool:
+                  not_in:
+                    - recruiting_schedule_screen

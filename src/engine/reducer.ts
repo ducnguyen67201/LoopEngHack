@@ -27,7 +27,12 @@ const emptyMethodMemory = () => ({
   lastMutation: null,
 });
 
-export function createInitialState(): RecruitingGameState {
+export interface RecruitingMemorySeed {
+  readonly redMemory?: RecruitingGameState['redMemory'];
+  readonly whiteMemory?: WhiteMemory;
+}
+
+export function createInitialState(memory: RecruitingMemorySeed = {}): RecruitingGameState {
   const techniques = redTechniqueSchema.options;
   return recruitingGameStateSchema.parse({
     schemaVersion: 1,
@@ -38,8 +43,10 @@ export function createInitialState(): RecruitingGameState {
     pendingAction: null,
     evidence: {},
     regressions: [],
-    redMemory: Object.fromEntries(techniques.map((technique) => [technique, emptyMethodMemory()])),
-    whiteMemory: {
+    redMemory:
+      memory.redMemory ??
+      Object.fromEntries(techniques.map((technique) => [technique, emptyMethodMemory()])),
+    whiteMemory: memory.whiteMemory ?? {
       observedSignals: [],
       defenseIds: [],
       regressionIds: [],

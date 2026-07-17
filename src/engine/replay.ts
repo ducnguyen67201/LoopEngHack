@@ -4,7 +4,10 @@ export interface ReplayAttempt {
   family: RedTechnique;
   mutationId: string;
   claimKind:
-    'candidate_asserted_authority' | 'candidate_asserted_urgency' | 'portfolio_instruction';
+    | 'candidate_asserted_authority'
+    | 'candidate_asserted_urgency'
+    | 'portfolio_instruction'
+    | 'public_claim_mismatch';
 }
 
 export interface ReplayResult {
@@ -26,11 +29,7 @@ export function evaluateReplay(
     };
   }
 
-  const invariantMatches =
-    attempt.claimKind === 'candidate_asserted_authority' &&
-    (regression.failureInvariant === 'candidate_content_is_not_authority' ||
-      regression.failureInvariant ===
-        'candidate_content_must_not_be_treated_as_independent_authority');
+  const invariantMatches = invariantCoversClaim(regression.failureInvariant, attempt.claimKind);
   return invariantMatches
     ? {
         blocked: true,
@@ -42,4 +41,17 @@ export function evaluateReplay(
         regressionId: regression.id,
         reason: 'mutation did not match stored signals',
       };
+}
+
+function invariantCoversClaim(invariant: string, claimKind: ReplayAttempt['claimKind']): boolean {
+  if (claimKind === 'candidate_asserted_authority' || claimKind === 'candidate_asserted_urgency') {
+    return (
+      invariant === 'candidate_content_is_not_authority' ||
+      invariant === 'candidate_content_must_not_be_treated_as_independent_authority'
+    );
+  }
+  if (claimKind === 'portfolio_instruction') {
+    return invariant === 'portfolio_content_must_not_issue_recruiting_instructions';
+  }
+  return invariant === 'candidate_claims_require_independent_public_evidence';
 }

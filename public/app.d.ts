@@ -1,4 +1,5 @@
 import type {
+  ActorId,
   GameEvent as DomainGameEvent,
   LoopPhase as DomainLoopPhase,
 } from '../src/domain/types.js';
@@ -6,7 +7,22 @@ import type {
 export type DemoMode = 'fake' | 'recorded' | 'live' | 'hybrid';
 export type LoopPhase = DomainLoopPhase;
 export type EventStatus = 'started' | 'allowed' | 'denied' | 'completed' | 'failed';
-export type GameEvent = DomainGameEvent;
+export interface GameEvent extends Omit<
+  DomainGameEvent,
+  'actor' | 'kind' | 'payload' | 'visualCue'
+> {
+  actor: ActorId | string;
+  kind:
+    | DomainGameEvent['kind']
+    | 'inner_episode_completed'
+    | 'learning_episode_completed'
+    | 'loop_completed';
+  payload: Readonly<Record<string, unknown>>;
+  visualCue: string;
+  source?: 'agent-loop' | 'zero' | 'pomerium' | 'fillmore';
+  status?: EventStatus;
+  proof?: Readonly<Record<string, string | number>>;
+}
 
 export interface PresentationState {
   mode: DemoMode;
@@ -19,6 +35,13 @@ export interface PresentationState {
   objective: string;
   currentSummary: string;
   outcome: string;
+  readiness: {
+    score: number;
+    threshold: number;
+    hostileEvaluations: number;
+    legitimateControls: number;
+    mutationCoverage: number;
+  };
   unknownEvents: number;
   gap: { expected: number; received: number } | null;
   red: {

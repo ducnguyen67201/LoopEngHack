@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 
 import { readConfig, type AppConfig } from './config.js';
 import type { HealthResponse, ServiceName } from './domain/types.js';
+import { startArenaServer } from './server/http.js';
 
 const VERSION = '0.1.0';
 
@@ -20,6 +21,11 @@ export function createServiceDescriptor(config: AppConfig): HealthResponse {
 
 const entrypoint = process.argv[1];
 if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {
-  const descriptor = createServiceDescriptor(readConfig());
-  process.stdout.write(`${JSON.stringify(descriptor)}\n`);
+  const config = readConfig();
+  if (config.SERVICE_ROLE === 'arena') {
+    startArenaServer(config);
+  } else {
+    const descriptor = createServiceDescriptor(config);
+    process.stdout.write(`${JSON.stringify(descriptor)}\n`);
+  }
 }

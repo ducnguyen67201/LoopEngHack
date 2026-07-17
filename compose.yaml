@@ -16,7 +16,7 @@ x-shared-environment: &shared-environment
 services:
   arena:
     <<: *app
-    command: ['node', 'dist/main.js']
+    command: ['node', 'dist/src/main.js']
     environment:
       <<: *shared-environment
       SERVICE_ROLE: arena
@@ -24,13 +24,31 @@ services:
       LOG_BRIDGE_TOKEN: ${LOG_BRIDGE_TOKEN:-}
       DEMO_MODE: ${DEMO_MODE:-fake}
       DEMO_STEP_DELAY_MS: ${DEMO_STEP_DELAY_MS:-600}
+      LOOP_MEMORY_DIRECTORY: /app/.loop-memory
+      LOOP_READINESS_THRESHOLD: ${LOOP_READINESS_THRESHOLD:-75}
+      LOOP_MIN_HOSTILE_EVALUATIONS: ${LOOP_MIN_HOSTILE_EVALUATIONS:-4}
+      LOOP_MIN_LEGITIMATE_CONTROLS: ${LOOP_MIN_LEGITIMATE_CONTROLS:-3}
+      LOOP_MAX_EPISODES: ${LOOP_MAX_EPISODES:-8}
+      LOOP_STAGNATION_EPISODES: ${LOOP_STAGNATION_EPISODES:-3}
+      LOOP_MAX_ZERO_SPEND_USD: ${LOOP_MAX_ZERO_SPEND_USD:-1}
       RECRUITING_MCP_INTERNAL_URL: http://recruiting-mcp:8084/mcp
+      SOURCER_MCP_URL: ${SOURCER_MCP_URL:-}
+      CONTROLLER_MCP_URL: ${CONTROLLER_MCP_URL:-}
+      SOURCER_POMERIUM_JWT: ${SOURCER_POMERIUM_JWT:-}
+      CONTROLLER_POMERIUM_JWT: ${CONTROLLER_POMERIUM_JWT:-}
+      POMERIUM_JWKS_URL: ${POMERIUM_JWKS_URL:-}
+      POMERIUM_ISSUER: ${POMERIUM_ISSUER:-}
+      POMERIUM_AUDIENCE: ${POMERIUM_AUDIENCE:-}
+      POMERIUM_SOURCER_SUBJECT: ${POMERIUM_SOURCER_SUBJECT:-}
+      POMERIUM_CONTROLLER_SUBJECT: ${POMERIUM_CONTROLLER_SUBJECT:-}
+    volumes:
+      - loop-memory:/app/.loop-memory
     ports:
       - '8080:8080'
 
   recruiting-mcp:
     <<: *app
-    command: ['node', 'dist/main.js']
+    command: ['node', 'dist/src/main.js']
     environment:
       <<: *shared-environment
       SERVICE_ROLE: recruiting-mcp
@@ -38,7 +56,7 @@ services:
 
   outbound-sourcer:
     <<: *app
-    command: ['node', 'dist/main.js']
+    command: ['node', 'dist/src/main.js']
     environment:
       <<: *shared-environment
       SERVICE_ROLE: outbound-sourcer
@@ -48,7 +66,7 @@ services:
 
   white-verifier:
     <<: *app
-    command: ['node', 'dist/main.js']
+    command: ['node', 'dist/src/main.js']
     environment:
       <<: *shared-environment
       SERVICE_ROLE: white-verifier
@@ -58,7 +76,7 @@ services:
 
   hiring-controller:
     <<: *app
-    command: ['node', 'dist/main.js']
+    command: ['node', 'dist/src/main.js']
     environment:
       <<: *shared-environment
       SERVICE_ROLE: hiring-controller
@@ -87,3 +105,4 @@ networks:
 
 volumes:
   pomerium-cache:
+  loop-memory:

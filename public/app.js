@@ -26,6 +26,9 @@ export const KNOWN_EVENT_KINDS = new Set([
   'replay_result',
   'memory_updated',
   'episode_completed',
+  'inner_episode_completed',
+  'learning_episode_completed',
+  'loop_completed',
   'error',
 ]);
 
@@ -44,6 +47,13 @@ export function createInitialPresentationState(mode = 'fake') {
     episodeId: 'not-started',
     episodeStatus: 'idle',
     objective: 'Verify one candidate and schedule one sandbox screen',
+    readiness: {
+      score: 0,
+      threshold: 75,
+      hostileEvaluations: 0,
+      legitimateControls: 0,
+      mutationCoverage: 0,
+    },
     lastSequence: 0,
     turn: 0,
     phase: 'sense',
@@ -267,7 +277,10 @@ export function reducePresentation(state, event) {
   let next = {
     ...state,
     episodeId: event.episodeId,
-    episodeStatus: event.kind === 'episode_completed' ? 'complete' : 'running',
+    episodeStatus:
+      event.kind === 'episode_completed' || event.kind === 'loop_completed'
+        ? 'complete'
+        : 'running',
     connection: state.mode === 'live' ? 'live' : 'fixture-ready',
     gap: null,
     lastSequence: event.sequence,
@@ -342,7 +355,7 @@ export function reducePresentation(state, event) {
           ...state.red,
           sprite: 'bluffing',
           technique: payload.technique ?? 'Unknown technique',
-          score: payload.score ?? state.red.score,
+          score: payload.redScore ?? payload.score ?? state.red.score,
         },
         outcome: 'ATTACK SELECTED',
       };
@@ -434,8 +447,8 @@ export function reducePresentation(state, event) {
         researcher: { ...state.researcher, sprite: 'verifying' },
         zero: {
           state: 'activated',
-          capability: payload.capabilityId ?? 'Verification capability',
-          budgetRemaining: state.zero.budgetRemaining,
+          capability: payload.capabilityLabel ?? payload.capabilityId ?? 'Verification capability',
+          budgetRemaining: payload.zeroBudgetRemaining ?? state.zero.budgetRemaining,
         },
         outcome: 'VERIFICATION TOOL ACTIVATED',
       };
@@ -527,6 +540,44 @@ export function reducePresentation(state, event) {
           message: payload.mutation ?? state.candidate.message,
         },
         outcome: payload.blocked === true ? 'MUTATED REPLAY BLOCKED' : 'REPLAY BYPASSED DEFENSE',
+      };
+      break;
+    case 'inner_episode_completed':
+      next = {
+        ...next,
+        episodeStatus: 'running',
+        outcome: 'EPISODE COMPLETE — EVALUATING STOP CONDITION',
+      };
+      break;
+    case 'learning_episode_completed':
+      next = {
+        ...next,
+        episodeStatus: 'running',
+        readiness: {
+          ...state.readiness,
+          score: payload.readinessScore ?? state.readiness.score,
+          hostileEvaluations: payload.hostileEvaluations ?? state.readiness.hostileEvaluations,
+          legitimateControls: payload.legitimateControls ?? state.readiness.legitimateControls,
+          mutationCoverage: payload.mutationCoverage ?? state.readiness.mutationCoverage,
+        },
+        outcome: `READINESS ${payload.readinessScore ?? state.readiness.score}% — LOOP CONTINUES`,
+      };
+      break;
+    case 'loop_completed':
+      next = {
+        ...next,
+        episodeStatus: 'complete',
+        readiness: {
+          ...state.readiness,
+          score: payload.readinessScore ?? state.readiness.score,
+          hostileEvaluations: payload.hostileEvaluations ?? state.readiness.hostileEvaluations,
+          legitimateControls: payload.legitimateControls ?? state.readiness.legitimateControls,
+        },
+        metrics: {
+          ...state.metrics,
+          policyBreaches: payload.policyBreaches ?? state.metrics.policyBreaches,
+        },
+        outcome: `FULL LOOP COMPLETE — READINESS ${payload.readinessScore ?? state.readiness.score}%`,
       };
       break;
     case 'memory_updated':
@@ -761,6 +812,7 @@ function render(state, manifest, events, handlers) {
   setText('episode-objective', state.objective);
   setText('turn-value', `${state.turn} / 8`);
   setText('phase-value', state.phase.toUpperCase());
+  setText('readiness-value', `${state.readiness.score}%`);
   setText('outcome-banner', state.outcome);
   setState('outcome-banner', state.gate.state);
 
