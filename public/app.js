@@ -1049,7 +1049,19 @@ async function bootstrap() {
   });
   requireElement('show-proof-button').addEventListener('click', () => proofDialog.showModal());
   requireElement('close-proof-button').addEventListener('click', () => proofDialog.close());
-  requireElement('open-call-button').addEventListener('click', () => callDialog.showModal());
+  requireElement('open-call-button').addEventListener('click', async () => {
+    callDialog.showModal();
+    if (callPhoneNumber.value.trim() !== '') return;
+    try {
+      const response = await fetch('/api/demo/phone-call-config');
+      const body = await response.json();
+      if (response.ok && typeof body.defaultToNumber === 'string') {
+        callPhoneNumber.value = body.defaultToNumber;
+      }
+    } catch {
+      // The field remains editable when no local default is available.
+    }
+  });
   requireElement('close-call-button').addEventListener('click', () => callDialog.close());
   placeCallButton.addEventListener('click', async () => {
     const toNumber = callPhoneNumber.value.trim();
@@ -1072,6 +1084,7 @@ async function bootstrap() {
       if (!response.ok || typeof body.liveUrl !== 'string') {
         throw new Error(`Phone call start failed with ${response.status}`);
       }
+      globalThis.sessionStorage.setItem('phone-demo-episode', body.episodeId);
       globalThis.location.assign(body.liveUrl);
     } catch (error) {
       callFeedback.dataset.state = 'error';
@@ -1156,12 +1169,55 @@ async function bootstrap() {
     });
     globalThis.addEventListener('beforeunload', () => liveSource.close());
     liveSource.connect();
+    if (globalThis.sessionStorage.getItem('phone-demo-episode') === liveEpisodeId) {
+      callDialog.showModal();
+      placeCallButton.disabled = true;
+      callFeedback.dataset.state = '';
+      callFeedback.textContent = 'CALL REQUESTED — waiting for ElevenLabs to ring your phone…';
+      void monitorPhoneDemo(liveEpisodeId, callFeedback, placeCallButton);
+    }
   } else {
     const fixture = await new FixtureEventSource().load();
     events = fixture.events;
     render(state, manifest, events, handlers);
     if (options.autoplay) play();
   }
+}
+
+async function monitorPhoneDemo(episodeId, feedback, callButton) {
+  for (let attempt = 0; attempt < 360; attempt += 1) {
+    try {
+      const response = await fetch(`/api/episodes/${encodeURIComponent(episodeId)}`);
+      const snapshot = await response.json();
+      if (!response.ok) throw new Error(`Phone status failed with ${response.status}`);
+      if (snapshot.status === 'awaiting_human') {
+        feedback.dataset.state = 'ringing';
+        feedback.textContent = 'PHONE RINGING NOW — answer, say “hire me,” then hang up.';
+      } else if (snapshot.status === 'running' && snapshot.closure?.status === 'received') {
+        feedback.dataset.state = 'caught';
+        feedback.textContent = 'TRANSCRIPT RECEIVED — running it through the learning pipeline…';
+      } else if (snapshot.status === 'complete') {
+        feedback.dataset.state = 'caught';
+        feedback.textContent = 'DONE — transcript evaluated, denied, and learned by the platform.';
+        globalThis.sessionStorage.removeItem('phone-demo-episode');
+        callButton.disabled = false;
+        return;
+      } else if (snapshot.status === 'failed') {
+        feedback.dataset.state = 'error';
+        feedback.textContent = `CALL FAILED — ${snapshot.reason ?? 'provider error'}`;
+        globalThis.sessionStorage.removeItem('phone-demo-episode');
+        callButton.disabled = false;
+        return;
+      }
+    } catch (error) {
+      feedback.dataset.state = 'error';
+      feedback.textContent = error instanceof Error ? error.message : 'Unable to read call status.';
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 1_000));
+  }
+  feedback.dataset.state = 'error';
+  feedback.textContent = 'CALL TIMED OUT — use the simulated transcript fallback.';
+  callButton.disabled = false;
 }
 
 if (typeof document !== 'undefined') {

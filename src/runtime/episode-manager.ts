@@ -108,6 +108,7 @@ export class EpisodeManager {
     requestedId?: string,
     criteria: Partial<LoopCriteria> = {},
     closureToNumber?: string,
+    phoneFirst = false,
   ): EpisodeRunSnapshot {
     if (
       [...this.runs.values()].some(
@@ -208,6 +209,64 @@ export class EpisodeManager {
         );
       },
     });
+
+    if (phoneFirst && this.closurePort !== null) {
+      const closureContext = phoneFirstClosureContext(id, closureToNumber);
+      record.completion = this.closurePort
+        .requestClosure(closureContext)
+        .then(async (receipt) => {
+          record.closure = {
+            status: 'awaiting_response',
+            conversationId: receipt.conversationId,
+            callSid: receipt.callSid ?? null,
+            responseDigest: null,
+            closedAt: null,
+          };
+          record.status = 'awaiting_human';
+          hub.publishClosureRequested(receipt.conversationId);
+          if (this.closurePort?.waitForSpokenResponse === undefined) {
+            throw new Error('phone-first demo requires authenticated transcript polling');
+          }
+          const spoken = await this.closurePort.waitForSpokenResponse(receipt, closureContext);
+          if (spoken.loopId !== id || spoken.conversationId !== receipt.conversationId) {
+            throw new LoopClosureConflictError('the phone transcript does not match the live call');
+          }
+          record.closure = {
+            ...record.closure,
+            status: 'received',
+            responseDigest: createHash('sha256').update(spoken.response).digest('hex'),
+            closedAt: new Date().toISOString(),
+          };
+          record.status = 'running';
+          hub.publishManualVoiceAttack(spoken.response, 'elevenlabs');
+          return runner.run();
+        })
+        .then((result) => {
+          record.readiness = result.readiness;
+          record.reason = result.reason;
+          record.terminalResult = result;
+          record.status = result.status;
+          hub.publishTerminal(result);
+          return result;
+        })
+        .catch((error: unknown) => {
+          const reason =
+            error instanceof Error ? error.message : 'phone-first learning loop failed';
+          record.status = 'failed';
+          record.reason = reason;
+          if (record.closure?.status === 'awaiting_response') {
+            record.closure = {
+              ...record.closure,
+              status: 'failed',
+              closedAt: new Date().toISOString(),
+            };
+          }
+          hub.publishFailure(reason);
+          throw error;
+        });
+      void record.completion.catch(() => undefined);
+      return this.snapshot(record);
+    }
 
     record.completion = runner
       .run()
@@ -584,6 +643,20 @@ function loopClosureContext(
     hostileEvaluations: result.readiness.hostileEvaluations,
     legitimateControls: result.readiness.legitimateControls,
     attackFamiliesCovered: result.readiness.attackFamiliesCovered,
+  };
+}
+
+function phoneFirstClosureContext(loopId: string, toNumber?: string): LoopClosureContext {
+  return {
+    loopId,
+    ...(toNumber === undefined ? {} : { toNumber }),
+    resultStatus: 'complete',
+    readinessScore: 0,
+    reason: 'Live caller response will be evaluated by the recruiting loop.',
+    episodeCount: 0,
+    hostileEvaluations: 0,
+    legitimateControls: 0,
+    attackFamiliesCovered: 0,
   };
 }
 

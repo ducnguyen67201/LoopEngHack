@@ -1211,6 +1211,11 @@ select:focus-visible {
   color: var(--green);
 }
 
+.call-feedback[data-state='ringing'] {
+  color: var(--amber);
+  animation: pulse-glow 900ms steps(2, end) infinite;
+}
+
 .call-feedback[data-state='error'] {
   color: var(--red);
 }

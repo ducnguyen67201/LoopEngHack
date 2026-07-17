@@ -185,7 +185,7 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
         return;
       }
       const input = localPhoneCallSchema.parse(request.body ?? {});
-      const snapshot = manager.start(undefined, {}, input.toNumber);
+      const snapshot = manager.start(undefined, {}, input.toNumber, true);
       const encodedId = encodeURIComponent(snapshot.id);
       response.status(202).json({
         ...snapshot,
@@ -193,10 +193,24 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
         statusUrl: `/api/episodes/${encodedId}`,
         eventsUrl: `/api/episodes/${encodedId}/events`,
         liveUrl: `/?mode=live&episode=${encodedId}`,
+        flow: 'call-first',
       });
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get('/api/demo/phone-call-config', (request, response) => {
+    if (
+      config.DEMO_MODE !== 'fake' ||
+      !config.ELEVENLABS_LOOP_CLOSURE_ENABLED ||
+      !isLoopbackRequest(request) ||
+      config.ELEVENLABS_TO_NUMBER === undefined
+    ) {
+      response.status(404).json({ error: 'not_found' });
+      return;
+    }
+    response.json({ defaultToNumber: config.ELEVENLABS_TO_NUMBER });
   });
 
   app.get('/api/episodes/:id', (request, response) => {
