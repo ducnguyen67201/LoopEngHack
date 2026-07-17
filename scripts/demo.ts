@@ -6,6 +6,9 @@ import express from 'express';
 const host = '127.0.0.1';
 const port = Number.parseInt(process.env.DEMO_PORT ?? '4173', 10);
 const publicDirectory = fileURLToPath(new URL('../public/', import.meta.url));
+const fixturePath = fileURLToPath(
+  new URL('../fixtures/recruiting-contract-events.json', import.meta.url),
+);
 
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   throw new Error('DEMO_PORT must be an integer between 1 and 65535');
@@ -13,6 +16,9 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 
 const app = express();
 app.disable('x-powered-by');
+app.get('/fixtures/recruiting-contract-events.json', (_request, response) => {
+  response.sendFile(fixturePath);
+});
 app.use(express.static(publicDirectory, { extensions: ['html'] }));
 
 // INTEGRATION(pipeline-runtime): the merged runtime may serve this same public directory, but the

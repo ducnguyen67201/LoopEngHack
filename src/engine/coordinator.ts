@@ -626,11 +626,40 @@ export class RecruitingLoopCoordinator {
     observation: Observation,
     draft: Omit<GameEventDraft, 'schemaVersion' | 'episodeId' | 'observationId'>,
   ): void {
+    const authorization = observation.authorization;
+    const authorizationPayload =
+      authorization === undefined
+        ? undefined
+        : {
+            identity: authorization.identity,
+            actor: authorization.actor,
+            tool: authorization.tool,
+            decision: authorization.decision,
+            reasonCodes: authorization.reasonCodes,
+            occurredAt: authorization.occurredAt,
+            ...(authorization.requestId === undefined
+              ? {}
+              : { requestId: authorization.requestId }),
+          };
+    const artifactPayloads = observation.artifacts.map((artifact) => ({
+      id: artifact.id,
+      kind: artifact.kind,
+      metadata: artifact.metadata,
+      ...(artifact.safeUri === undefined ? {} : { safeUri: artifact.safeUri }),
+      ...(artifact.digest === undefined ? {} : { digest: artifact.digest }),
+    }));
+
     this.emit({
       schemaVersion: 1,
       episodeId: this.episodeId(),
       observationId: observation.id,
       ...draft,
+      payload: {
+        ...draft.payload,
+        provenance: observation.provenance,
+        ...(authorizationPayload === undefined ? {} : { authorization: authorizationPayload }),
+        ...(artifactPayloads.length === 0 ? {} : { artifacts: artifactPayloads }),
+      },
     });
   }
 

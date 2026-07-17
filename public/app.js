@@ -1,28 +1,35 @@
-import { FixtureEventSource, LiveEventSource, readLaunchOptions } from './replay.js';
+import {
+  createEpisode,
+  FixtureEventSource,
+  LiveEventSource,
+  loadEpisodeSnapshot,
+  readLaunchOptions,
+} from './replay.js';
 
 export const KNOWN_EVENT_KINDS = new Set([
-  'episode_initialized',
-  'pipeline_created',
-  'candidate_enriched',
-  'candidate_attack_emitted',
-  'schedule_requested',
-  'policy_denied',
-  'verification_started',
-  'zero_discovery_started',
-  'zero_discovery_completed',
-  'evidence_created',
+  'episode_started',
+  'role_created',
+  'candidate_sourced',
+  'outreach_sent',
+  'candidate_replied',
+  'attack_selected',
+  'screen_recommended',
+  'tool_requested',
+  'policy_decision',
+  'failure_invariant_stored',
+  'defense_selected',
+  'zero_capability_discovered',
+  'verification_completed',
+  'evidence_submitted',
   'regression_stored',
-  'legitimate_candidate_verified',
-  'policy_allowed',
   'screen_scheduled',
-  'replay_blocked',
+  'replay_result',
   'memory_updated',
   'episode_completed',
   'error',
 ]);
 
 const PHASES = new Set(['sense', 'plan', 'request', 'authorize', 'execute', 'observe', 'learn']);
-const STATUSES = new Set(['started', 'allowed', 'denied', 'completed', 'failed']);
 const SOURCE_LABELS = {
   'agent-loop': 'LOOP ENGINE',
   zero: 'ZERO',
@@ -37,7 +44,7 @@ export function createInitialPresentationState(mode = 'fake') {
     episodeId: 'not-started',
     episodeStatus: 'idle',
     objective: 'Verify one candidate and schedule one sandbox screen',
-    lastSequence: -1,
+    lastSequence: 0,
     turn: 0,
     phase: 'sense',
     currentSummary: 'Press play to run the recruiting loop',
@@ -69,7 +76,7 @@ export function createInitialPresentationState(mode = 'fake') {
     gate: {
       state: 'ready',
       identity: '—',
-      tool: 'fillmore_schedule_screen',
+      tool: 'recruiting_schedule_screen',
       reason: 'Identity-aware policy is standing by',
     },
     zero: {
@@ -107,14 +114,18 @@ export function validateGameEvent(event) {
     return 'Event must be an object';
   }
 
-  for (const field of ['id', 'episodeId', 'actor', 'kind', 'source', 'status', 'summary']) {
+  for (const field of ['id', 'episodeId', 'actor', 'kind', 'summary', 'visualCue']) {
     if (typeof event[field] !== 'string' || event[field].trim() === '') {
       return `Event field ${field} must be a non-empty string`;
     }
   }
 
-  if (!Number.isInteger(event.sequence) || event.sequence < 0) {
-    return 'Event sequence must be a non-negative integer';
+  if (event.schemaVersion !== 1) {
+    return 'Event schemaVersion must be 1';
+  }
+
+  if (!Number.isInteger(event.sequence) || event.sequence < 1) {
+    return 'Event sequence must be a positive integer';
   }
 
   if (!Number.isInteger(event.turn) || event.turn < 0 || event.turn > 8) {
@@ -125,12 +136,12 @@ export function validateGameEvent(event) {
     return `Unrecognized loop phase: ${String(event.phase)}`;
   }
 
-  if (!STATUSES.has(event.status)) {
-    return `Unrecognized event status: ${event.status}`;
+  if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
+    return 'Event payload must be an object';
   }
 
-  if (event.payload !== undefined && (!event.payload || typeof event.payload !== 'object')) {
-    return 'Event payload must be an object when present';
+  if (typeof event.occurredAt !== 'string' || Number.isNaN(Date.parse(event.occurredAt))) {
+    return 'Event occurredAt must be an ISO timestamp';
   }
 
   return null;
@@ -143,13 +154,77 @@ function appendEvidence(evidence, item) {
   return [...evidence, item];
 }
 
-function withTrace(state, event, recognized) {
+function sourceForEvent(event) {
+  if (event.kind === 'policy_decision') return 'pomerium';
+  if (['zero_capability_discovered', 'verification_completed'].includes(event.kind)) return 'zero';
+  if (
+    [
+      'role_created',
+      'candidate_sourced',
+      'outreach_sent',
+      'screen_recommended',
+      'screen_scheduled',
+    ].includes(event.kind)
+  ) {
+    return 'fillmore';
+  }
+  return 'agent-loop';
+}
+
+function statusForEvent(event) {
+  if (event.kind === 'error') return 'failed';
+  if (event.kind === 'tool_requested' || event.kind === 'episode_started') return 'started';
+  if (event.kind === 'policy_decision') {
+    return event.payload.decision === 'allow' ? 'allowed' : 'denied';
+  }
+  if (event.kind === 'replay_result' && event.payload.blocked === true) return 'denied';
+  return 'completed';
+}
+
+function recordValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function proofForEvent(event) {
+  const payload = event.payload;
+  const authorization = recordValue(payload.authorization);
+  const artifacts = Array.isArray(payload.artifacts) ? payload.artifacts : [];
+  const firstArtifact = recordValue(artifacts[0]);
+  const artifactMetadata = recordValue(firstArtifact.metadata);
+  const proof = {};
+
+  const requestId = payload.requestId ?? authorization.requestId;
+  if (event.kind === 'policy_decision' && typeof requestId === 'string') {
+    const key = payload.decision === 'allow' ? 'pomeriumAllowRequestId' : 'pomeriumDenyRequestId';
+    proof[key] = requestId;
+  }
+  if (event.kind === 'zero_capability_discovered' && typeof payload.capabilityId === 'string') {
+    proof.zeroCapabilityId = payload.capabilityId;
+  }
+  if (event.kind === 'verification_completed') {
+    const invocationId = payload.invocationId ?? artifactMetadata.invocationId;
+    const digest = payload.artifactSha256 ?? firstArtifact.digest;
+    if (typeof invocationId === 'string') proof.zeroInvocationId = invocationId;
+    if (typeof digest === 'string') proof.evidenceHash = digest;
+  }
+  if (event.kind === 'evidence_submitted' && typeof payload.digest === 'string') {
+    proof.evidenceHash = payload.digest;
+  }
+  if (event.kind === 'screen_scheduled') {
+    const operationId = payload.calendarEventId ?? firstArtifact.id;
+    if (typeof operationId === 'string') proof.fillmoreOperationId = operationId;
+  }
+  if (event.observationId) proof.observationId = event.observationId;
+  return proof;
+}
+
+function withTrace(state, event, recognized, source, status) {
   const entry = {
     id: event.id,
     sequence: event.sequence,
     turn: event.turn,
-    source: event.source,
-    status: event.status,
+    source,
+    status,
     kind: event.kind,
     summary: event.summary,
     recognized,
@@ -185,8 +260,10 @@ export function reducePresentation(state, event) {
   }
 
   const recognized = KNOWN_EVENT_KINDS.has(event.kind);
-  const payload = event.payload ?? {};
-  const proof = event.proof ?? {};
+  const payload = event.payload;
+  const source = sourceForEvent(event);
+  const status = statusForEvent(event);
+  const proof = proofForEvent(event);
   let next = {
     ...state,
     episodeId: event.episodeId,
@@ -200,23 +277,23 @@ export function reducePresentation(state, event) {
     unknownEvents: state.unknownEvents + (recognized ? 0 : 1),
     sourceStatus: {
       ...state.sourceStatus,
-      [event.source]: event.status,
+      [source]: status,
     },
     proof: { ...state.proof, ...proof },
-    trace: withTrace(state, event, recognized),
+    trace: withTrace(state, event, recognized, source, status),
     timeline: [
       ...state.timeline,
       {
         sequence: event.sequence,
         turn: event.turn,
         kind: event.kind,
-        status: event.status,
+        status,
       },
     ],
   };
 
   switch (event.kind) {
-    case 'episode_initialized':
+    case 'episode_started':
       next = {
         ...next,
         objective: payload.objective ?? state.objective,
@@ -227,132 +304,152 @@ export function reducePresentation(state, event) {
         outcome: 'SANDBOX READY',
       };
       break;
-    case 'pipeline_created':
+    case 'role_created':
       next = {
         ...next,
         fillmore: {
           state: 'pipeline-ready',
-          pipeline: payload.pipelineName ?? 'Synthetic recruiting pipeline',
+          pipeline: payload.roleId ?? 'Synthetic recruiting pipeline',
         },
         outcome: 'PIPELINE ONLINE',
       };
       break;
-    case 'candidate_enriched': {
-      const candidate = payload.candidate ?? {};
+    case 'candidate_sourced':
       next = {
         ...next,
         candidate: {
           ...state.candidate,
-          ...candidate,
-          status: 'enriched',
+          displayName: 'Synthetic candidate set',
+          headline: 'Hostile and legitimate controls sourced',
+          status: 'sourced',
         },
-        researcher: { ...state.researcher, sprite: 'searching' },
-        zero: {
-          ...state.zero,
-          state: 'profile-enriched',
-          capability: 'Public profile enrichment',
-          budgetRemaining: payload.zeroBudgetRemaining ?? state.zero.budgetRemaining,
-        },
-        outcome: 'PROFILE ENRICHED',
+        fillmore: { ...state.fillmore, state: 'candidates-sourced' },
+        outcome: 'CANDIDATES SOURCED',
       };
       break;
-    }
-    case 'candidate_attack_emitted':
+    case 'outreach_sent':
+      next = {
+        ...next,
+        candidate: { ...state.candidate, status: 'contacted' },
+        fillmore: { ...state.fillmore, state: 'outreach-sent' },
+        outcome: 'CONTROLLED OUTREACH SENT',
+      };
+      break;
+    case 'attack_selected':
       next = {
         ...next,
         red: {
           ...state.red,
-          sprite: 'messaging',
+          sprite: 'bluffing',
           technique: payload.technique ?? 'Unknown technique',
-          score: payload.redScore ?? state.red.score,
+          score: payload.score ?? state.red.score,
         },
+        outcome: 'ATTACK SELECTED',
+      };
+      break;
+    case 'candidate_replied':
+      next = {
+        ...next,
+        red: { ...state.red, sprite: 'messaging' },
         candidate: {
           ...state.candidate,
-          message: payload.message ?? event.summary,
+          message: event.summary,
           status: 'claim-received',
         },
         outcome: 'PERSUASION ATTEMPT',
       };
       break;
-    case 'schedule_requested':
+    case 'screen_recommended':
+      next = {
+        ...next,
+        red: { ...state.red, sprite: 'bluffing' },
+        candidate: { ...state.candidate, status: 'recommended-without-evidence' },
+        outcome: 'UNVERIFIED SCREEN RECOMMENDED',
+      };
+      break;
+    case 'tool_requested':
       next = {
         ...next,
         red: { ...state.red, sprite: 'bluffing' },
         gate: {
           state: 'pending',
-          identity: payload.identity ?? 'unknown-identity',
+          identity: event.actor,
           tool: payload.tool ?? state.gate.tool,
           reason: 'Authorization request in flight',
         },
         outcome: 'PRIVILEGED TOOL REQUESTED',
       };
       break;
-    case 'policy_denied':
+    case 'policy_decision': {
+      const allowed = payload.decision === 'allow';
       next = {
         ...next,
-        red: { ...state.red, sprite: 'blocked' },
+        red: allowed ? state.red : { ...state.red, sprite: 'blocked' },
         gate: {
-          state: 'denied',
-          identity: payload.identity ?? state.gate.identity,
+          state: allowed ? 'allowed' : 'denied',
+          identity: event.actor,
           tool: payload.tool ?? state.gate.tool,
-          reason: payload.reason ?? event.summary,
+          reason: event.summary,
         },
-        calendar: { ...state.calendar, state: 'locked' },
-        metrics: { ...state.metrics, redFlags: state.metrics.redFlags + 1 },
-        outcome: 'POMERIUM DENIED — NO SIDE EFFECT',
+        calendar: { ...state.calendar, state: allowed ? 'unlocked' : 'locked' },
+        metrics: {
+          ...state.metrics,
+          redFlags: state.metrics.redFlags + (allowed ? 0 : 1),
+        },
+        outcome: allowed ? 'CONTROLLER ALLOWED — SAME TOOL' : 'POMERIUM DENIED — NO SIDE EFFECT',
       };
       break;
-    case 'verification_started':
+    }
+    case 'failure_invariant_stored':
       next = {
         ...next,
         researcher: {
           ...state.researcher,
           sprite: 'searching',
-          diagnosis: payload.diagnosis ?? event.summary,
+          diagnosis: payload.invariant ?? event.summary,
           evidence: appendEvidence(state.researcher.evidence, {
             id: `missing-${event.id}`,
-            label: payload.missingEvidence ?? 'Independent evidence required',
+            label: 'Independent evidence required',
             status: 'missing',
           }),
         },
         outcome: 'DEFENSE DIAGNOSES FAILURE',
       };
       break;
-    case 'zero_discovery_started':
+    case 'defense_selected':
       next = {
         ...next,
         researcher: { ...state.researcher, sprite: 'searching' },
         zero: {
           ...state.zero,
           state: 'discovering',
-          capability: 'Searching capability catalog…',
-          budgetRemaining: payload.zeroBudgetRemaining ?? state.zero.budgetRemaining,
+          capability: payload.need ?? 'Searching capability catalog…',
         },
         outcome: 'ZERO DISCOVERING TOOL',
       };
       break;
-    case 'zero_discovery_completed':
+    case 'zero_capability_discovered':
       next = {
         ...next,
         researcher: { ...state.researcher, sprite: 'verifying' },
         zero: {
           state: 'activated',
-          capability: payload.capabilityLabel ?? 'Verification capability',
-          budgetRemaining: payload.zeroBudgetRemaining ?? state.zero.budgetRemaining,
+          capability: payload.capabilityId ?? 'Verification capability',
+          budgetRemaining: state.zero.budgetRemaining,
         },
         outcome: 'VERIFICATION TOOL ACTIVATED',
       };
       break;
-    case 'evidence_created':
+    case 'verification_completed':
       next = {
         ...next,
         researcher: {
           ...state.researcher,
           sprite: 'verifying',
-          diagnosis: payload.finding ?? event.summary,
+          diagnosis: event.summary,
           evidence: appendEvidence(state.researcher.evidence, {
-            id: payload.evidenceId ?? event.id,
-            label: payload.finding ?? 'Evidence observed',
+            id: event.observationId ?? event.id,
+            label: 'Independent verification completed',
             status: 'verified',
           }),
         },
@@ -366,37 +463,33 @@ export function reducePresentation(state, event) {
         researcher: {
           ...state.researcher,
           sprite: 'success',
-          memory: [payload.rule ?? 'New regression stored', ...state.researcher.memory].slice(0, 3),
+          memory: [
+            `Stored regression ${payload.regressionId ?? 'for independent evidence'}`,
+            ...state.researcher.memory,
+          ].slice(0, 3),
         },
         outcome: 'DEFENSE MEMORY UPDATED',
       };
       break;
-    case 'legitimate_candidate_verified': {
-      const candidate = payload.candidate ?? {};
+    case 'evidence_submitted':
       next = {
         ...next,
         candidate: {
           ...state.candidate,
-          ...candidate,
-          message: payload.message ?? 'Evidence supplied. Ready for a sandbox screen.',
+          displayName: 'Synthetic control candidate',
+          message: 'Evidence supplied. Ready for a sandbox screen.',
           status: 'verified-for-screen',
         },
-        researcher: { ...state.researcher, sprite: 'success' },
-        outcome: 'LEGITIMATE CANDIDATE VERIFIED',
-      };
-      break;
-    }
-    case 'policy_allowed':
-      next = {
-        ...next,
-        gate: {
-          state: 'allowed',
-          identity: payload.identity ?? state.gate.identity,
-          tool: payload.tool ?? state.gate.tool,
-          reason: payload.reason ?? event.summary,
+        researcher: {
+          ...state.researcher,
+          sprite: 'success',
+          evidence: appendEvidence(state.researcher.evidence, {
+            id: payload.evidenceId ?? event.id,
+            label: 'Digest-bound scheduling evidence',
+            status: 'verified',
+          }),
         },
-        calendar: { ...state.calendar, state: 'unlocked' },
-        outcome: 'CONTROLLER ALLOWED — SAME TOOL',
+        outcome: 'LEGITIMATE CANDIDATE VERIFIED',
       };
       break;
     case 'screen_scheduled':
@@ -415,15 +508,17 @@ export function reducePresentation(state, event) {
         outcome: 'FILLMORE BOOKED TEST SCREEN ✓',
       };
       break;
-    case 'replay_blocked':
+    case 'replay_result':
       next = {
         ...next,
         red: {
           ...state.red,
-          sprite: 'blocked',
+          sprite: payload.blocked === true ? 'blocked' : 'bluffing',
           score: payload.redScore ?? state.red.score,
           memory: [
-            `Replay blocked by ${payload.matchedRule ?? 'stored regression'}`,
+            payload.blocked === true
+              ? `Replay blocked by ${payload.matchedRule ?? 'stored regression'}`
+              : 'Replay bypassed stored regression',
             ...state.red.memory,
           ].slice(0, 3),
         },
@@ -431,7 +526,7 @@ export function reducePresentation(state, event) {
           ...state.candidate,
           message: payload.mutation ?? state.candidate.message,
         },
-        outcome: 'MUTATED REPLAY BLOCKED',
+        outcome: payload.blocked === true ? 'MUTATED REPLAY BLOCKED' : 'REPLAY BYPASSED DEFENSE',
       };
       break;
     case 'memory_updated':
@@ -439,15 +534,16 @@ export function reducePresentation(state, event) {
         ...next,
         red: {
           ...state.red,
-          memory: [payload.redMemory ?? 'Red memory updated', ...state.red.memory].slice(0, 3),
+          score: payload.redScore ?? state.red.score,
+          memory: ['Red memory updated', ...state.red.memory].slice(0, 3),
         },
         researcher: {
           ...state.researcher,
           sprite: 'success',
-          memory: [payload.whiteMemory ?? 'White memory updated', ...state.researcher.memory].slice(
-            0,
-            3,
-          ),
+          memory: [
+            `White retained regression ${payload.regressionId ?? 'memory'}`,
+            ...state.researcher.memory,
+          ].slice(0, 3),
         },
         outcome: 'BOTH AGENTS LEARNED',
       };
@@ -488,6 +584,15 @@ export function replayEvents(events, mode = 'fake') {
     (state, event) => reducePresentation(state, event),
     createInitialPresentationState(mode),
   );
+}
+
+export async function recoverPresentationSnapshot(episodeId, fetcher = globalThis.fetch) {
+  const snapshot = await loadEpisodeSnapshot(episodeId, fetcher);
+  const state = replayEvents(snapshot.events, 'live');
+  if (state.gap !== null || state.lastSequence !== snapshot.lastSequence) {
+    throw new Error('Authoritative episode snapshot contains a sequence gap');
+  }
+  return { events: snapshot.events, state };
 }
 
 function requireElement(id) {
@@ -717,6 +822,9 @@ async function bootstrap() {
   let events = [];
   let pointer = -1;
   let timer = null;
+  let liveSource = null;
+  let liveEpisodeId = options.episodeId;
+  let recoveryPromise = null;
 
   const playButton = requireElement('play-button');
   const nextButton = requireElement('next-button');
@@ -740,19 +848,52 @@ async function bootstrap() {
     playButton.setAttribute('aria-pressed', 'false');
   }
 
+  function recoverFromSnapshot() {
+    if (recoveryPromise !== null || !liveEpisodeId) return;
+
+    liveSource?.close();
+    state = { ...state, connection: 'recovering' };
+    render(state, manifest, events, handlers);
+    recoveryPromise = recoverPresentationSnapshot(liveEpisodeId)
+      .then((recovered) => {
+        events = [...recovered.events];
+        state = { ...recovered.state, connection: 'recovered' };
+        render(state, manifest, events, handlers);
+        if (state.episodeStatus === 'complete' || state.episodeStatus === 'failed') {
+          pause();
+          liveSource?.close();
+        } else {
+          liveSource?.connect(state.lastSequence);
+        }
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Snapshot recovery failed';
+        state = { ...state, connection: 'error', currentSummary: message };
+        render(state, manifest, events, handlers);
+      })
+      .finally(() => {
+        recoveryPromise = null;
+      });
+  }
+
   function applyEvent(event) {
     const priorSequence = state.lastSequence;
     state = reducePresentation(state, event);
 
+    if (state.lastSequence > priorSequence && !events.some(({ id }) => id === event.id)) {
+      events = [...events, event];
+    }
+
     if (state.connection === 'gap' && state.lastSequence === priorSequence) {
       pause();
-      // INTEGRATION(pipeline-runtime): on a live sequence gap, fetch
-      // GET /api/episodes/:id for the authoritative snapshot, hydrate a presentation snapshot,
-      // then let native EventSource resume after its Last-Event-ID. Never guess missing events.
+      recoverFromSnapshot();
     }
 
     render(state, manifest, events, handlers);
-    if (state.episodeStatus === 'complete' || state.episodeStatus === 'failed') pause();
+    if (state.episodeStatus === 'complete' || state.episodeStatus === 'failed') {
+      pause();
+      liveSource?.close();
+    }
   }
 
   function next() {
@@ -802,20 +943,27 @@ async function bootstrap() {
     playButton.disabled = true;
     nextButton.disabled = true;
     restartButton.disabled = true;
-    if (!options.episodeId) {
-      throw new Error('Live mode requires ?mode=live&episode=<episode-id>');
+    if (!liveEpisodeId) {
+      state = { ...state, connection: 'starting-episode' };
+      render(state, manifest, events, handlers);
+      const started = await createEpisode();
+      liveEpisodeId = started.episodeId;
+      const url = new URL(globalThis.location.href);
+      url.searchParams.set('mode', 'live');
+      url.searchParams.set('episode', liveEpisodeId);
+      globalThis.history.replaceState({}, '', url);
     }
 
     // INTEGRATION(agent-loop): the loop coordinator publishes normalized GameEvent objects to
     // the server EventSink. The browser must never call Zero, Pomerium, Fillmore, or an agent.
-    // INTEGRATION(zero-adapter): normalize discovery/enrichment/evidence results into the
-    // candidate_enriched, zero_discovery_*, and evidence_created event kinds before publishing.
-    // INTEGRATION(pomerium-adapter): publish policy_denied/policy_allowed with the verified
-    // identity, identical tool name, safe reason, and sanitized request ID.
-    // INTEGRATION(fillmore-adapter): publish pipeline_created/screen_scheduled with only the
-    // sandbox pipeline label and sanitized operation ID; never send credentials to this client.
-    const liveSource = new LiveEventSource({
-      episodeId: options.episodeId,
+    // INTEGRATION(zero-adapter): the coordinator publishes zero_capability_discovered and
+    // verification_completed after the injected ZeroPort returns sanitized observations.
+    // INTEGRATION(pomerium-adapter): the injected PolicyPort contributes safe authorization
+    // metadata to canonical policy_decision events; credentials never reach this client.
+    // INTEGRATION(recruiting-adapter): the injected RecruitingOpsPort contributes only sanitized
+    // role/candidate/screen artifacts to canonical engine events.
+    liveSource = new LiveEventSource({
+      episodeId: liveEpisodeId,
       onEvent: applyEvent,
       onConnection(connection) {
         state = { ...state, connection };

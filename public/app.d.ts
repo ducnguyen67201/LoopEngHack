@@ -1,25 +1,12 @@
-export type DemoMode = 'fake' | 'recorded' | 'live' | 'hybrid';
-export type LoopPhase =
-  'sense' | 'plan' | 'request' | 'authorize' | 'execute' | 'observe' | 'learn';
-export type EventStatus = 'started' | 'allowed' | 'denied' | 'completed' | 'failed';
+import type {
+  GameEvent as DomainGameEvent,
+  LoopPhase as DomainLoopPhase,
+} from '../src/domain/types.js';
 
-export interface GameEvent {
-  schemaVersion: number;
-  id: string;
-  episodeId: string;
-  sequence: number;
-  turn: number;
-  occurredAt: string;
-  actor: string;
-  kind: string;
-  phase: LoopPhase;
-  source: string;
-  status: EventStatus;
-  summary: string;
-  visualCue?: string;
-  payload?: Record<string, unknown>;
-  proof?: Record<string, unknown>;
-}
+export type DemoMode = 'fake' | 'recorded' | 'live' | 'hybrid';
+export type LoopPhase = DomainLoopPhase;
+export type EventStatus = 'started' | 'allowed' | 'denied' | 'completed' | 'failed';
+export type GameEvent = DomainGameEvent;
 
 export interface PresentationState {
   mode: DemoMode;
@@ -29,6 +16,7 @@ export interface PresentationState {
   lastSequence: number;
   turn: number;
   phase: LoopPhase;
+  objective: string;
   currentSummary: string;
   outcome: string;
   unknownEvents: number;
@@ -79,6 +67,7 @@ export interface PresentationState {
     whiteSaves: number;
     policyBreaches: number;
   };
+  sourceStatus: Record<'agent-loop' | 'zero' | 'pomerium' | 'fillmore', string>;
   proof: Record<string, unknown>;
   trace: Array<{
     id: string;
@@ -97,3 +86,7 @@ export function createInitialPresentationState(mode?: DemoMode): PresentationSta
 export function validateGameEvent(event: unknown): string | null;
 export function reducePresentation(state: PresentationState, event: GameEvent): PresentationState;
 export function replayEvents(events: GameEvent[], mode?: DemoMode): PresentationState;
+export function recoverPresentationSnapshot(
+  episodeId: string,
+  fetcher?: typeof fetch,
+): Promise<{ events: GameEvent[]; state: PresentationState }>;
