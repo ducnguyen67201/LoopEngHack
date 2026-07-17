@@ -17,9 +17,10 @@ const DISALLOWED_CAPABILITY_TERMS = [
   'inmail',
 ];
 
-const NEED_KEYWORDS: Record<VerificationNeed, readonly string[]> = {
-  public_page_capture: ['screenshot', 'capture', 'scrape', 'web page'],
-  public_claim_lookup: ['search', 'scrape', 'public', 'claim'],
+const NEED_KEYWORDS: Record<
+  Exclude<VerificationNeed, 'public_page_capture' | 'public_claim_lookup'>,
+  readonly string[]
+> = {
   linkedin_profile_url: ['linkedin', 'profile', 'url'],
   linkedin_profile_enrichment: ['linkedin', 'profile', 'enrichment'],
 };
@@ -105,6 +106,25 @@ export function isCapabilityAllowedForNeed(
 
   if (need === 'linkedin_profile_enrichment' && isExplicitNoPiiProfileEnrichment(text)) {
     return true;
+  }
+
+  if (need === 'public_page_capture') {
+    const capturesPage = text.includes('screenshot') || text.includes('capture');
+    const acceptsPublicUrl =
+      text.includes('web page') ||
+      text.includes('webpage') ||
+      text.includes('public url') ||
+      text.includes('browser');
+    return capturesPage && acceptsPublicUrl;
+  }
+
+  if (need === 'public_claim_lookup') {
+    const evaluatesClaim =
+      text.includes('claim') || text.includes('fact check') || text.includes('fact-check');
+    const usesIndependentSources = ['search', 'scrap', 'crawl', 'citation', 'review'].some((term) =>
+      text.includes(term),
+    );
+    return evaluatesClaim && usesIndependentSources;
   }
 
   const required = NEED_KEYWORDS[need];

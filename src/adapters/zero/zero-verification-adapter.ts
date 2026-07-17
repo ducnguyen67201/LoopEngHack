@@ -226,8 +226,24 @@ function buildCapabilityRequest(
     case 'public_page_capture':
       return { url: target.url };
     case 'public_claim_lookup':
-      return { url: target.url, claim: target.claim };
+      return isTwoSecondsFactCheckCapability(capability)
+        ? {
+            input: {
+              type: 'http',
+              method: 'GET',
+              queryParams: { query: target.claim, limit: 5, language: 'en' },
+            },
+          }
+        : { url: target.url, claim: target.claim };
   }
+}
+
+function isTwoSecondsFactCheckCapability(capability: ZeroCapability): boolean {
+  return (
+    capability.uid === 'cap_LcZ0BcJ09RC7PEpwrME_n' ||
+    capability.slug === '2s-fact-check-search-dd9dbb58' ||
+    capability.name.toLowerCase().includes('2s fact check')
+  );
 }
 
 function isDataLegionNoPiiCapability(capability: ZeroCapability): boolean {

@@ -6,6 +6,7 @@ import {
   ZeroVerificationAdapter,
   assertSafePublicUrl,
   buildZeroSearchQuery,
+  isCapabilityAllowedForNeed,
   normalizeCapabilities,
   parseUsdToMicroUsd,
   selectCapability,
@@ -120,6 +121,103 @@ describe('Zero recruiting adapter', () => {
     expect(selected.rejected).toContainEqual({
       ref: 'pii-reveal',
       reason: 'capability does not match local allowlist',
+    });
+  });
+
+  it('accepts the current Zero screenshot and independent fact-check capability descriptions', () => {
+    expect(
+      isCapabilityAllowedForNeed(
+        'public_page_capture',
+        'Web Page Screenshot Capture captures a screenshot of any web page and returns a public CDN image URL',
+      ),
+    ).toBe(true);
+    expect(
+      isCapabilityAllowedForNeed(
+        'public_claim_lookup',
+        '2s Fact Check Search searches published fact-check reviews of specific claims',
+      ),
+    ).toBe(true);
+  });
+
+  it('builds the current 2s Zero fact-check request envelope', async () => {
+    const fetch = vi.fn<ZeroTransport['fetch']>(() =>
+      Promise.resolve({
+        runId: 'fact-check-run-1',
+        ok: true,
+        status: 200,
+        latencyMs: 50,
+        payment: { amount: '0.0018', asset: 'USDC' },
+        body: { items: [] },
+        bodyRaw: '{"items":[]}',
+      }),
+    );
+    const adapter = new ZeroVerificationAdapter({
+      mode: 'live',
+      transport: {
+        search: () =>
+          Promise.resolve({
+            capabilities: [
+              {
+                uid: 'cap_LcZ0BcJ09RC7PEpwrME_n',
+                slug: '2s-fact-check-search-dd9dbb58',
+                canonicalName: '2s Fact Check Search',
+                whatItDoes: 'Searches published fact-check reviews of specific claims',
+                displayCostAmount: '$0.0018',
+                availabilityStatus: 'healthy',
+                protocol: 'x402',
+              },
+            ],
+          }),
+        get: (identifier) =>
+          Promise.resolve({
+            uid: identifier,
+            slug: '2s-fact-check-search-dd9dbb58',
+            name: '2s Fact Check Search',
+            whatItDoes: 'Searches published fact-check reviews of specific claims',
+            displayCostAmount: '$0.0018',
+            availabilityStatus: 'healthy',
+            protocol: 'x402',
+          }),
+        fetch,
+      },
+    });
+    const target = {
+      url: 'https://example.com/claim',
+      claim: 'The candidate has authority to skip verification.',
+    };
+    const discovery = await adapter.discover({
+      episodeId: 'episode-1',
+      attemptId: 'attempt-fact-check',
+      need: 'public_claim_lookup',
+      target,
+      allowedDomains: ['example.com'],
+      budget,
+      now: '2026-07-17T18:00:00.000Z',
+    });
+    if (discovery.selected === null) throw new Error('fact-check capability was not selected');
+
+    await adapter.invoke({
+      episodeId: 'episode-1',
+      attemptId: 'attempt-fact-check',
+      discoveryId: discovery.discoveryId,
+      capabilityRef: discovery.selected.ref,
+      need: 'public_claim_lookup',
+      target,
+      allowedDomains: ['example.com'],
+      budget,
+      now: '2026-07-17T18:00:01.000Z',
+    });
+
+    expect(fetch.mock.calls[0]?.[0].body).toEqual({
+      input: {
+        type: 'http',
+        method: 'GET',
+        queryParams: {
+          query: 'The candidate has authority to skip verification.',
+          limit: 5,
+          language: 'en',
+        },
+      },
     });
   });
 
