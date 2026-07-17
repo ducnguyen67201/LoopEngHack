@@ -58,13 +58,13 @@ npm run stream
 
 This keeps the simpler single-episode coordinator path available at [http://127.0.0.1:8080/?mode=live](http://127.0.0.1:8080/?mode=live). It is useful for contract tests and debugging one deterministic episode without the adaptive supervisor.
 
-| Mode                     | What is real                                                                | What is simulated                         | Best for                                                    |
-| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
-| `npm run demo`           | UI reducer and renderer                                                     | Entire event source is a recorded fixture | Rehearsal, judging, offline fallback                        |
-| `npm run stream`         | One coordinator episode, HTTP API, SSE, UI                                  | Recruiting, Zero, and policy ports        | Episode-level development                                   |
-| `npm run dev` (`fake`)   | Adaptive loop, memory, readiness, stop logic, coordinator, SSE, UI          | Recruiting, Zero, and policy ports        | Full local learning-loop testing                            |
-| `npm run dev` (`hybrid`) | Adaptive loop plus real Pomerium authorization and protected MCP scheduling | Recruiting world and Zero evidence        | Same-tool identity proof                                    |
-| `live`                   | Intentionally unavailable                                                   | —                                         | Fails closed until real recruiting and Zero factories exist |
+| Mode                     | What is real                                                                | What is simulated                         | Best for                                          |
+| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| `npm run demo`           | UI reducer and renderer                                                     | Entire event source is a recorded fixture | Rehearsal, judging, offline fallback              |
+| `npm run stream`         | One coordinator episode, HTTP API, SSE, UI                                  | Recruiting, Zero, and policy ports        | Episode-level development                         |
+| `npm run dev` (`fake`)   | Adaptive loop, memory, readiness, stop logic, coordinator, SSE, UI          | Recruiting, Zero, and policy ports        | Full local learning-loop testing                  |
+| `npm run dev` (`hybrid`) | Adaptive loop plus real Pomerium authorization and protected MCP scheduling | Other ports unless individually enabled   | Same-tool policy proof and bounded adapter smokes |
+| `npm run dev` (`live`)   | Pomerium, live Zero, bounded HTTP outbound, and Google sandbox Calendar     | No port fallback                          | Credential-gated external sandbox run             |
 
 ## How one recruiting episode works
 
@@ -193,7 +193,8 @@ The adaptive manager permits one active learning run. The legacy single-episode 
 - Evidence artifacts are hashed; credentials and raw sponsor responses do not enter the browser event stream.
 - The sourcer can research and send controlled outreach, but only the hiring controller can schedule.
 - Consequential scheduling is idempotent, evidence-bound, and restricted to the sandbox calendar.
-- `live` mode fails closed until real recruiting and Zero runtime factories are installed.
+- `live` mode fails configuration unless Pomerium, live Zero, bounded HTTP outbound, and Google
+  sandbox Calendar are all selected with their required credentials and allowlists.
 
 ## Project structure
 
@@ -236,8 +237,15 @@ The default commands are intentionally safe and deterministic. For hybrid setup,
 - [Zero adapter verification](docs/runbooks/zero.md)
 - [Local Pomerium Core proof](docs/runbooks/pomerium-core-local.md)
 - [ElevenLabs phone closure](docs/runbooks/elevenlabs-loop-closure.md)
+- [HTTP outbound/ATS gateway](docs/runbooks/http-outbound-ats.md)
+- [Google Calendar sandbox](docs/runbooks/sandbox-calendar.md)
 
-Hybrid mode sends the Sourcer authorization probe, Controller authorization probe, and consequential scheduling call through real identity-scoped Pomerium MCP routes. Recruiting and Zero remain synthetic, so hybrid output must not be labeled as fully live sponsor provenance.
+Hybrid mode sends the Sourcer authorization probe, Controller authorization probe, and
+consequential scheduling call through real identity-scoped Pomerium MCP routes. Its other adapters
+remain synthetic unless their mode flags explicitly enable them. Live mode requires all external
+adapter selections, but provider provenance is established only after the operator completes the
+credentialed smokes and captures redacted audit evidence. The generic HTTP gateway is not claimed
+as an official Fillmore API integration.
 
 ## Current status
 
@@ -249,9 +257,12 @@ Hybrid mode sends the Sourcer authorization probe, Controller authorization prob
 - [x] Pomerium-guarded MCP scheduling path and upstream JWT verification
 - [x] Pomerium MCP client and Zero adapter boundaries with tests
 - [x] Optional ElevenLabs call that waits for an operator response before closing the loop
-- [ ] Capture the real Pomerium same-tool deny/allow proof in hybrid mode
+- [x] Capture a real local Pomerium Core same-tool deny/allow policy proof
 - [ ] Complete a live Zero capability invocation
-- [ ] Connect the production recruiting adapter at `RecruitingOpsPort`
+- [x] Wire the bounded HTTP recruiting adapter at `RecruitingOpsPort`
+- [ ] Prove the HTTP adapter against a real sponsor gateway or official Fillmore contract
+- [x] Wire an evidence-bound Google Calendar sandbox adapter
+- [ ] Perform an explicitly approved real sandbox Calendar write and idempotent replay
 - [ ] Record and submit the three-minute demo
 
 For the detailed engine contract, see [docs/recruiting-loop-engine.md](docs/recruiting-loop-engine.md). For UI wiring and event extension rules, see [public/INTEGRATION.md](public/INTEGRATION.md).

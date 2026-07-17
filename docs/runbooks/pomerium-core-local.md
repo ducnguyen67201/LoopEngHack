@@ -55,19 +55,42 @@ NODE_EXTRA_CA_CERTS="$PWD/.pomerium/core-ca.pem" \
   npx tsx scripts/verify-pomerium-core.ts
 ```
 
+The verifier fails before making a network request when the local CA file is
+missing or unreadable. It also rejects HTTP URLs, credential-bearing URLs, an
+invalid timeout, and a Sourcer/Controller comparison that points both actors at
+the same route. A connection error is a failed proof, never a skipped check.
+
 Expected result:
 
 ```text
-PASS  Sourcer can call read-only recruiting_find_candidates -> HTTP 200
-PASS  Sourcer cannot call recruiting_schedule_screen -> MCP access denied (blocked by Pomerium)
-PASS  Controller can call identical recruiting_schedule_screen -> HTTP 200
+PASS  Sourcer can call read-only recruiting_find_candidates -> HTTP 200 (request <id>)
+PASS  Sourcer cannot call recruiting_schedule_screen -> MCP access denied (request <id>)
+PASS  Controller can call identical recruiting_schedule_screen -> HTTP 200 (request <id>)
 
 Pomerium Core MCP policy smoke test passed.
+Evidence written to <repo>/.pomerium/pomerium-core-proof.json
 ```
 
-The upstream server's terminal must log the safe call and the Controller call.
-It must not log a Sourcer scheduling execution. Pomerium's authorization logs
-should include `mcp-method`, `mcp-tool`, and the deny decision.
+The verifier requires the allowed call to contain the exact synthetic upstream
+result, not merely an HTTP 200. It writes a mode-`0600` JSON artifact containing
+the compared tool, an input digest, DENY/ALLOW decisions, routes, and request
+IDs. Both policy assertions use the identical
+`recruiting_schedule_screen` input. Override the artifact location only when
+needed with `POMERIUM_SMOKE_EVIDENCE_PATH`.
+
+The upstream server's terminal must log the safe call and exactly one
+Controller scheduling call. It must not log a Sourcer scheduling execution.
+Capture the matching gateway evidence while the request IDs are fresh:
+
+```bash
+docker compose -f compose.pomerium-core.yaml logs --since=5m pomerium-core \
+  | tee .pomerium/pomerium-core-authorize.log
+```
+
+The Pomerium log must contain the request IDs from the JSON artifact alongside
+`mcp-method`, `mcp-tool`, and the deny/allow decisions. The JSON artifact alone
+is client-side evidence; the correlated authorization log is the gateway-side
+evidence.
 
 Pomerium represents an MCP policy denial as a JSON-RPC error (`-32602`,
 `access denied`) in an HTTP 200 response. Clients should classify that protocol
@@ -86,6 +109,10 @@ docker compose -f compose.pomerium-core.yaml down
 - Pomerium understands the JSON-RPC request as `tools/call`.
 - Pomerium enforces a policy on the exact MCP tool name.
 - A denied consequential call never reaches the upstream tool handler.
+
+It still does not prove separate authenticated machine identities: these two
+Core routes are intentionally public and represent actor policy lanes. Do not
+describe this artifact as a service-account identity proof.
 
 ## Identity proof
 

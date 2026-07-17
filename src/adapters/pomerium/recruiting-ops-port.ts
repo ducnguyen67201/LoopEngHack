@@ -61,7 +61,12 @@ export class PomeriumRecruitingOpsPort implements RecruitingOpsPort {
     if (outcome.status !== 'success') {
       return this.error(context, outcome.summary);
     }
-    const result = parseToolResult(outcome.result.content);
+    let result: { operationId: string; eventId?: string; idempotentReplay: boolean };
+    try {
+      result = parseToolResult(outcome.result.content);
+    } catch {
+      return this.error(context, 'The protected scheduling tool returned an invalid result.');
+    }
     return observationSchema.parse({
       schemaVersion: 1,
       id: this.options.ids.next('protected-schedule-observation'),
@@ -75,11 +80,15 @@ export class PomeriumRecruitingOpsPort implements RecruitingOpsPort {
       facts: [
         {
           key: 'calendar_event_id',
-          value: result.operationId,
+          value: result.eventId ?? result.operationId,
           sourceRef: outcome.requestId ?? result.operationId,
         },
         { key: 'candidate_id', value: input.candidateId, sourceRef: result.operationId },
-        { key: 'idempotent_replay', value: false, sourceRef: result.operationId },
+        {
+          key: 'idempotent_replay',
+          value: result.idempotentReplay,
+          sourceRef: result.operationId,
+        },
       ],
       riskSignals: [],
       uncertainties: [],
@@ -130,7 +139,11 @@ export class PomeriumRecruitingOpsPort implements RecruitingOpsPort {
   }
 }
 
-function parseToolResult(content: readonly unknown[]): { operationId: string } {
+function parseToolResult(content: readonly unknown[]): {
+  operationId: string;
+  eventId?: string;
+  idempotentReplay: boolean;
+} {
   for (const item of content) {
     if (
       typeof item === 'object' &&
@@ -140,8 +153,31 @@ function parseToolResult(content: readonly unknown[]): { operationId: string } {
       'text' in item &&
       typeof item.text === 'string'
     ) {
-      const parsed = JSON.parse(item.text) as { operationId?: unknown };
-      if (typeof parsed.operationId === 'string') return { operationId: parsed.operationId };
+      try {
+        const parsed = JSON.parse(item.text) as {
+          operationId?: unknown;
+          eventId?: unknown;
+          idempotentReplay?: unknown;
+        };
+        if (
+          typeof parsed.operationId === 'string' &&
+          /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/.test(parsed.operationId)
+        ) {
+          const eventId =
+            typeof parsed.eventId === 'string' &&
+            /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/.test(parsed.eventId)
+              ? parsed.eventId
+              : undefined;
+          return {
+            operationId: parsed.operationId,
+            ...(eventId === undefined ? {} : { eventId }),
+            idempotentReplay:
+              typeof parsed.idempotentReplay === 'boolean' ? parsed.idempotentReplay : false,
+          };
+        }
+      } catch {
+        // Ignore non-JSON text blocks; MCP results may contain multiple content items.
+      }
     }
   }
   throw new Error('Protected scheduling tool returned no operation id');

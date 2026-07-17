@@ -40,6 +40,15 @@ export class CliZeroTransport implements ZeroTransport {
     return this.execJson(args);
   }
 
+  public async version(): Promise<string> {
+    const output = await this.execText(['--version']);
+    const version = output.trim().slice(0, 80);
+    if (version.length === 0) {
+      throw new ZeroAdapterError('transport_failed', 'Zero CLI returned an empty version');
+    }
+    return version;
+  }
+
   public async get(identifier: string): Promise<unknown> {
     return this.execJson(['get', identifier, '--json']);
   }
@@ -61,16 +70,26 @@ export class CliZeroTransport implements ZeroTransport {
 
   private async execJson(args: readonly string[]): Promise<unknown> {
     try {
+      const stdout = await this.execText(args);
+      return JSON.parse(stdout);
+    } catch (error) {
+      if (error instanceof ZeroAdapterError) throw error;
+      if (error instanceof SyntaxError) {
+        throw new ZeroAdapterError('transport_failed', 'Zero CLI returned non-JSON output');
+      }
+      throw new ZeroAdapterError('transport_failed', 'Zero CLI command failed');
+    }
+  }
+
+  private async execText(args: readonly string[]): Promise<string> {
+    try {
       const { stdout } = await execFileAsync(this.binary, [...args], {
         timeout: this.timeoutMs,
         maxBuffer: MAX_BUFFER_BYTES,
         windowsHide: true,
       });
-      return JSON.parse(stdout);
+      return stdout;
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new ZeroAdapterError('transport_failed', 'Zero CLI returned non-JSON output');
-      }
       const message = error instanceof Error ? error.message : 'Zero CLI command failed';
       throw new ZeroAdapterError('transport_failed', redactDiagnostics(message));
     }

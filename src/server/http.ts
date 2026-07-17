@@ -208,7 +208,9 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
   app.use('/fixtures', express.static(fixtureDirectory));
   app.use('/api', (_request, response) => response.status(404).json({ error: 'not_found' }));
   app.use(express.static(publicDirectory, { extensions: ['html'] }));
-  app.get('*path', (_request, response) => response.sendFile(`${publicDirectory}/index.html`));
+  app.get('*path', (_request, response) =>
+    response.sendFile(`${publicDirectory}/index.html`, { dotfiles: 'allow' }),
+  );
 
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     void next;

@@ -9,7 +9,9 @@ import type {
   InvokeCapabilityCommand,
   Observation,
 } from '../../domain/types.js';
+import { assertWithinBudget } from './budget.js';
 import { hashArtifact } from './evidence.js';
+import { assertSafeTarget } from './policy.js';
 import { ZeroAdapterError, type VerificationTarget, type ZeroBudget } from './types.js';
 import type { ZeroVerificationAdapter } from './zero-verification-adapter.js';
 
@@ -26,12 +28,14 @@ export interface ZeroPortAdapterOptions {
   verificationAdapter: ZeroVerificationAdapter;
   claimTargetResolver: ClaimTargetResolver;
   budget: ZeroBudget;
+  budgetScope?: 'episode' | 'runtime';
 }
 
 interface EpisodeDiscovery {
   discoveryId: string;
   capabilityId: string;
   need: DiscoverCapabilityCommand['need'];
+  declaredCostMicroUsd: number;
 }
 
 /** Maps Zero's transport model to the engine's strict, provenance-bearing port. */
@@ -39,12 +43,15 @@ export class ZeroPortAdapter implements ZeroPort {
   private readonly verificationAdapter: ZeroVerificationAdapter;
   private readonly claimTargetResolver: ClaimTargetResolver;
   private readonly budget: ZeroBudget;
+  private readonly budgetScope: 'episode' | 'runtime';
   private readonly latestDiscoveryByEpisode = new Map<string, EpisodeDiscovery>();
+  private readonly reservedSpendByEpisode = new Map<string, number>();
 
   public constructor(options: ZeroPortAdapterOptions) {
     this.verificationAdapter = options.verificationAdapter;
     this.claimTargetResolver = options.claimTargetResolver;
     this.budget = { ...options.budget };
+    this.budgetScope = options.budgetScope ?? 'episode';
   }
 
   public async discover(
@@ -64,7 +71,7 @@ export class ZeroPortAdapter implements ZeroPort {
         need: input.need,
         target: {},
         allowedDomains: [],
-        budget: this.budget,
+        budget: this.budgetFor(input.episodeId),
         now: context.occurredAt,
       });
       if (discovery.selected === null) {
@@ -80,6 +87,7 @@ export class ZeroPortAdapter implements ZeroPort {
         discoveryId: discovery.discoveryId,
         capabilityId: discovery.selected.ref,
         need: input.need,
+        declaredCostMicroUsd: discovery.selected.declaredCostMicroUsd,
       });
       const artifact = hashArtifact({
         discoveryId: discovery.discoveryId,
@@ -159,6 +167,14 @@ export class ZeroPortAdapter implements ZeroPort {
     }
 
     try {
+      assertSafeTarget({
+        need: input.need,
+        target: resolved.target,
+        allowedDomains: resolved.allowedDomains,
+      });
+      const invocationBudget = this.budgetFor(input.episodeId);
+      assertWithinBudget(discovery.declaredCostMicroUsd, invocationBudget);
+      this.reserveSpend(input.episodeId, discovery.declaredCostMicroUsd);
       const invocation = await this.verificationAdapter.invoke({
         episodeId: input.episodeId,
         attemptId: input.attemptId,
@@ -167,7 +183,7 @@ export class ZeroPortAdapter implements ZeroPort {
         need: input.need,
         target: resolved.target,
         allowedDomains: resolved.allowedDomains,
-        budget: this.budget,
+        budget: invocationBudget,
         now: context.occurredAt,
       });
 
@@ -226,6 +242,24 @@ export class ZeroPortAdapter implements ZeroPort {
     } catch (error) {
       return this.fromError(context, error, ['zero_discover_verifier']);
     }
+  }
+
+  private budgetFor(episodeId: string): ZeroBudget {
+    const reservedSpendMicroUsd =
+      this.budgetScope === 'runtime'
+        ? [...this.reservedSpendByEpisode.values()].reduce((total, amount) => total + amount, 0)
+        : (this.reservedSpendByEpisode.get(episodeId) ?? 0);
+    return {
+      ...this.budget,
+      spentMicroUsd: this.budget.spentMicroUsd + reservedSpendMicroUsd,
+    };
+  }
+
+  private reserveSpend(episodeId: string, amountMicroUsd: number): void {
+    this.reservedSpendByEpisode.set(
+      episodeId,
+      (this.reservedSpendByEpisode.get(episodeId) ?? 0) + amountMicroUsd,
+    );
   }
 
   private validateContext(

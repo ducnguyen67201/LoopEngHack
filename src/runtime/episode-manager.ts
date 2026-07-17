@@ -4,10 +4,16 @@ import { resolve } from 'node:path';
 import type { AppConfig } from '../config.js';
 import { ElevenLabsLoopClosureClient } from '../adapters/elevenlabs/loop-closure-client.js';
 import {
+  createGoogleCalendarSandboxPort,
+  type CalendarSchedulePort,
+} from '../adapters/calendar/index.js';
+import { HttpOutboundRecruitingOpsPort } from '../adapters/outbound/index.js';
+import {
   PomeriumMcpClient,
   PomeriumPolicyPort,
   PomeriumRecruitingOpsPort,
 } from '../adapters/pomerium/index.js';
+import { createLiveZeroPort, type LiveZeroPortRuntime } from '../adapters/zero/index.js';
 import type { PolicyPort, RecruitingOpsPort } from '../domain/ports.js';
 import type { VerificationEvidence } from '../domain/types.js';
 import { RecruitingLoopCoordinator } from '../engine/coordinator.js';
@@ -18,6 +24,7 @@ import { FileLoopMemoryStore } from '../loop/memory-store.js';
 import { LearningLoopRunner } from '../loop/runner.js';
 import { PresentationEventHub } from '../server/presentation-events.js';
 import { NamespacedIdGenerator, SystemClock } from './primitives.js';
+import { createSyntheticClaimTargetResolver } from './zero-claim-targets.js';
 
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/;
 
@@ -63,6 +70,8 @@ interface LoopClosureRecord {
 
 export interface EpisodeManagerOptions {
   readonly closurePort?: LoopClosurePort | null;
+  readonly calendar?: CalendarSchedulePort;
+  readonly liveZeroRuntime?: LiveZeroPortRuntime;
 }
 
 export interface ProtectedScheduleInput {
@@ -75,26 +84,27 @@ export interface ProtectedScheduleInput {
 
 export interface ProtectedSchedule extends ProtectedScheduleInput {
   readonly operationId: string;
+  readonly eventId?: string;
+  readonly idempotentReplay: boolean;
 }
 
 export class EpisodeManager {
   private readonly runs = new Map<string, EpisodeRunRecord>();
   private readonly closurePort: LoopClosurePort | null;
+  private readonly calendar: CalendarSchedulePort | null;
 
   constructor(
     private readonly config: AppConfig,
-    options: EpisodeManagerOptions = {},
+    private readonly options: EpisodeManagerOptions = {},
   ) {
     this.closurePort =
-      options.closurePort === undefined ? createLoopClosurePort(config) : options.closurePort;
+      this.options.closurePort === undefined
+        ? createLoopClosurePort(config)
+        : this.options.closurePort;
+    this.calendar = this.options.calendar ?? this.calendarPort();
   }
 
   start(requestedId?: string, criteria: Partial<LoopCriteria> = {}): EpisodeRunSnapshot {
-    if (this.config.DEMO_MODE === 'live') {
-      throw new Error(
-        'live mode requires real Zero and outbound adapters; use hybrid for Pomerium with the synthetic recruiting world',
-      );
-    }
     if (
       [...this.runs.values()].some(
         (record) => record.status === 'running' || record.status === 'awaiting_human',
@@ -109,6 +119,7 @@ export class EpisodeManager {
     const hub = new PresentationEventHub(id, this.config.DEMO_STEP_DELAY_MS);
     const evidence = new Map<string, VerificationEvidence>();
     const memoryPath = resolve(this.config.LOOP_MEMORY_DIRECTORY, `${id}.json`);
+    const liveZero = this.liveZeroRuntime();
     const record: EpisodeRunRecord = {
       id,
       createdAt: new Date().toISOString(),
@@ -129,6 +140,16 @@ export class EpisodeManager {
       eventSink: hub,
       runId: id,
       criteria: this.tightenCriteria(criteria),
+      ...(liveZero === null
+        ? {}
+        : {
+            beforeRun: async () => {
+              const probe = await liveZero.probe();
+              if (probe.status !== 'ready_for_discovery') {
+                throw new Error('live Zero preflight failed closed before outbound side effects');
+              }
+            },
+          }),
       onEvidenceCreated: (createdEvidence) => evidence.set(createdEvidence.id, createdEvidence),
       onProgress: (readiness, state) => {
         record.readiness = readiness;
@@ -145,10 +166,10 @@ export class EpisodeManager {
       },
       createCoordinator: (input) => {
         const ids = new NamespacedIdGenerator(input.episodeId);
-        const baseRecruitingOps = new FakeRecruitingOpsPort({ ids });
+        const baseRecruitingOps = this.recruitingOps(ids);
         let recruitingOps: RecruitingOpsPort = baseRecruitingOps;
         let policy: PolicyPort = new FakePolicyPort({ ids });
-        if (this.config.DEMO_MODE === 'hybrid') {
+        if (this.config.DEMO_MODE === 'hybrid' || this.config.DEMO_MODE === 'live') {
           const sourcerClient = this.pomeriumClient('sourcer');
           const controllerClient = this.pomeriumClient('controller');
           policy = new PomeriumPolicyPort({
@@ -166,10 +187,11 @@ export class EpisodeManager {
             controllerClient,
           });
         }
+        const zero = liveZero?.port ?? new FakeZeroPort({ ids });
         return new RecruitingLoopCoordinator(
           {
             recruitingOps,
-            zero: new FakeZeroPort({ ids }),
+            zero,
             policy,
             clock: new SystemClock(),
             ids,
@@ -286,7 +308,10 @@ export class EpisodeManager {
     return this.snapshot(record);
   }
 
-  executeProtectedSchedule(runId: string, input: ProtectedScheduleInput): ProtectedSchedule {
+  async executeProtectedSchedule(
+    runId: string,
+    input: ProtectedScheduleInput,
+  ): Promise<ProtectedSchedule> {
     const record = this.runs.get(runId);
     if (record === undefined) throw new Error(`unknown episode ${runId}`);
     const evidence = record.evidence.get(input.evidenceId);
@@ -310,13 +335,7 @@ export class EpisodeManager {
       }
       return existing;
     }
-    const scheduled: ProtectedSchedule = {
-      ...input,
-      operationId: `pomerium-screen-${createHash('sha256')
-        .update(`${runId}:${input.episodeId}`)
-        .digest('hex')
-        .slice(0, 24)}`,
-    };
+    const scheduled = await this.scheduleScreen(runId, input);
     record.protectedSchedules.set(input.episodeId, scheduled);
     return scheduled;
   }
@@ -364,6 +383,111 @@ export class EpisodeManager {
       authorizationHeader: `Bearer Pomerium-${jwt}`,
       timeoutMs: 10_000,
     });
+  }
+
+  private liveZeroRuntime(): LiveZeroPortRuntime | null {
+    if (this.config.ZERO_MODE !== 'live') return null;
+    if (this.options.liveZeroRuntime !== undefined) return this.options.liveZeroRuntime;
+    const allowedCapabilityRefs = this.config.ZERO_ALLOWED_CAPABILITY_REFS;
+    const allowedTargetDomains = this.config.ZERO_ALLOWED_TARGET_DOMAINS;
+    const targetBaseUrl = this.config.ZERO_TARGET_BASE_URL;
+    if (
+      allowedCapabilityRefs === undefined ||
+      allowedTargetDomains === undefined ||
+      targetBaseUrl === undefined
+    ) {
+      throw new Error('live Zero requires explicit capability and target-domain allowlists');
+    }
+    return createLiveZeroPort({
+      binary: this.config.ZERO_RUNNER,
+      timeoutMs: this.config.ZERO_TIMEOUT_MS,
+      allowedCapabilityRefs,
+      allowedTargetDomains,
+      maxPerCallMicroUsd: Math.round(this.config.ZERO_MAX_PER_CALL_USD * 1_000_000),
+      maxEpisodeMicroUsd: Math.round(this.config.LOOP_MAX_ZERO_SPEND_USD * 1_000_000),
+      claimTargetResolver: createSyntheticClaimTargetResolver(targetBaseUrl, allowedTargetDomains),
+    });
+  }
+
+  private recruitingOps(ids: NamespacedIdGenerator): RecruitingOpsPort {
+    if (this.config.RECRUITING_OPS_MODE !== 'http') {
+      return new FakeRecruitingOpsPort({ ids });
+    }
+    return new HttpOutboundRecruitingOpsPort({
+      baseUrl: requiredConfig(
+        this.config.OUTBOUND_RECRUITING_BASE_URL,
+        'OUTBOUND_RECRUITING_BASE_URL',
+      ),
+      bearerToken: requiredConfig(
+        this.config.OUTBOUND_RECRUITING_BEARER_TOKEN,
+        'OUTBOUND_RECRUITING_BEARER_TOKEN',
+      ),
+      timeoutMs: this.config.OUTBOUND_RECRUITING_TIMEOUT_MS,
+      ids,
+      allowlist: {
+        roleIds: ['role-loop-engineer'],
+        candidateIds: ['candidate-red', 'candidate-control'],
+        templateIds: ['outreach-loop-role-v1'],
+        eventIds: [
+          'reply-authority-red',
+          'reply-urgency-red',
+          'reply-portfolio-red',
+          'reply-credential-red',
+        ],
+        sandboxIds: ['sandbox-hackathon'],
+        sandboxCalendarIds: ['calendar-sandbox'],
+      },
+    });
+  }
+
+  private calendarPort(): CalendarSchedulePort | null {
+    if (this.config.CALENDAR_MODE !== 'google') return null;
+    return createGoogleCalendarSandboxPort({
+      accessToken: requiredConfig(
+        this.config.GOOGLE_CALENDAR_OAUTH_ACCESS_TOKEN,
+        'GOOGLE_CALENDAR_OAUTH_ACCESS_TOKEN',
+      ),
+      sandboxCalendarId: requiredConfig(
+        this.config.GOOGLE_CALENDAR_SANDBOX_ID,
+        'GOOGLE_CALENDAR_SANDBOX_ID',
+      ),
+      timeoutMs: this.config.GOOGLE_CALENDAR_TIMEOUT_MS,
+    });
+  }
+
+  private async scheduleScreen(
+    runId: string,
+    input: ProtectedScheduleInput,
+  ): Promise<ProtectedSchedule> {
+    if (this.calendar === null) {
+      return {
+        ...input,
+        operationId: `pomerium-screen-${createHash('sha256')
+          .update(`${runId}:${input.episodeId}`)
+          .digest('hex')
+          .slice(0, 24)}`,
+        idempotentReplay: false,
+      };
+    }
+    const result = await this.calendar.scheduleScreen({
+      sandboxCalendarId: requiredConfig(
+        this.config.GOOGLE_CALENDAR_SANDBOX_ID,
+        'GOOGLE_CALENDAR_SANDBOX_ID',
+      ),
+      episodeId: input.episodeId,
+      evidenceId: input.evidenceId,
+      candidateId: input.candidateId,
+      roleId: input.roleId,
+      attendeeEmail: requiredConfig(
+        this.config.SANDBOX_CALENDAR_ATTENDEE_EMAIL,
+        'SANDBOX_CALENDAR_ATTENDEE_EMAIL',
+      ),
+      title: this.config.SANDBOX_SCREEN_TITLE,
+      description: this.config.SANDBOX_SCREEN_DESCRIPTION,
+      startAt: requiredConfig(this.config.SANDBOX_SCREEN_START_AT, 'SANDBOX_SCREEN_START_AT'),
+      endAt: requiredConfig(this.config.SANDBOX_SCREEN_END_AT, 'SANDBOX_SCREEN_END_AT'),
+    });
+    return { ...input, ...result };
   }
 
   private tightenCriteria(requested: Partial<LoopCriteria>): LoopCriteria {
@@ -450,7 +574,7 @@ function createLoopClosurePort(config: AppConfig): LoopClosurePort | null {
   return new ElevenLabsLoopClosureClient({ apiKey, agentId, agentPhoneNumberId, toNumber });
 }
 
-function requiredConfig(value: string | undefined, field: string): string {
-  if (value === undefined) throw new Error(`${field} is required for ElevenLabs loop closure`);
+function requiredConfig(value: string | undefined, name: string): string {
+  if (value === undefined) throw new Error(`${name} is required`);
   return value;
 }

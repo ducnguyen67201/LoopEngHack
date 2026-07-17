@@ -4,6 +4,14 @@ export { hashArtifact, extractLinkedInUrl, normalizePublicProfileFacts } from '.
 export { assertSafePublicUrl, assertSafeTarget, isCapabilityAllowedForNeed } from './policy.js';
 export { selectCapability } from './selection.js';
 export { CliZeroTransport, FixtureZeroTransport } from './transport.js';
+export {
+  createLiveZeroPort,
+  type LiveZeroPortOptions,
+  type LiveZeroPortRuntime,
+  type LiveZeroProbe,
+  type LiveZeroRuntime,
+  type ZeroStartupProbe,
+} from './live-factory.js';
 export { ZeroVerificationAdapter } from './zero-verification-adapter.js';
 export {
   ZeroPortAdapter,

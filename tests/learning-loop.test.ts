@@ -9,6 +9,22 @@ import { NamespacedIdGenerator, SystemClock } from '../src/runtime/primitives.js
 import { PresentationEventHub } from '../src/server/presentation-events.js';
 
 describe('multi-episode learning loop', () => {
+  it('runs an external readiness preflight before constructing any coordinator', async () => {
+    let coordinatorCreated = false;
+    const runner = new LearningLoopRunner({
+      memoryStore: new InMemoryLoopMemoryStore(),
+      eventSink: new PresentationEventHub('preflight-test'),
+      beforeRun: () => Promise.reject(new Error('external preflight unavailable')),
+      createCoordinator: () => {
+        coordinatorCreated = true;
+        throw new Error('coordinator must not be created');
+      },
+    });
+
+    await expect(runner.run()).rejects.toThrow('external preflight unavailable');
+    expect(coordinatorCreated).toBe(false);
+  });
+
   it('persists memory, explores all attack families, and stops after readiness converges', async () => {
     const memoryStore = new InMemoryLoopMemoryStore();
     const hub = new PresentationEventHub('test-learning-loop');

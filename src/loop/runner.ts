@@ -30,6 +30,7 @@ export interface LearningLoopRunnerOptions {
   readonly now?: () => string;
   readonly onEvidenceCreated?: (evidence: VerificationEvidence) => void;
   readonly onProgress?: (readiness: LoopReadiness, state: RecruitingGameState) => void;
+  readonly beforeRun?: () => Promise<void>;
 }
 
 export class LearningLoopRunner {
@@ -44,6 +45,7 @@ export class LearningLoopRunner {
   }
 
   async run(): Promise<LearningLoopResult> {
+    await this.options.beforeRun?.();
     let memory = (await this.options.memoryStore.load()) ?? this.emptyMemory();
     let readiness = calculateLoopReadiness(memory.evaluations);
     const readinessScores = memory.evaluations.map(

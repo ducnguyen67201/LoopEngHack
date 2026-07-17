@@ -17,7 +17,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 const app = express();
 app.disable('x-powered-by');
 app.get('/fixtures/recruiting-contract-events.json', (_request, response) => {
-  response.sendFile(fixturePath);
+  response.sendFile(fixturePath, { dotfiles: 'allow' });
 });
 app.use(express.static(publicDirectory, { extensions: ['html'] }));
 
