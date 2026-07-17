@@ -28,6 +28,7 @@ export const KNOWN_EVENT_KINDS = new Set([
   'episode_completed',
   'inner_episode_completed',
   'learning_episode_completed',
+  'loop_closure_requested',
   'loop_completed',
   'error',
 ]);
@@ -280,7 +281,9 @@ export function reducePresentation(state, event) {
     episodeStatus:
       event.kind === 'episode_completed' || event.kind === 'loop_completed'
         ? 'complete'
-        : 'running',
+        : event.kind === 'loop_closure_requested'
+          ? 'awaiting_human'
+          : 'running',
     connection: state.mode === 'live' ? 'live' : 'fixture-ready',
     gap: null,
     lastSequence: event.sequence,
@@ -561,6 +564,13 @@ export function reducePresentation(state, event) {
           mutationCoverage: payload.mutationCoverage ?? state.readiness.mutationCoverage,
         },
         outcome: `READINESS ${payload.readinessScore ?? state.readiness.score}% — LOOP CONTINUES`,
+      };
+      break;
+    case 'loop_closure_requested':
+      next = {
+        ...next,
+        episodeStatus: 'awaiting_human',
+        outcome: 'AWAITING YOUR PHONE RESPONSE',
       };
       break;
     case 'loop_completed':

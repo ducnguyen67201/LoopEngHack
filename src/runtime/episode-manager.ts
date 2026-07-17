@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import type { AppConfig } from '../config.js';
+import { ElevenLabsLoopClosureClient } from '../adapters/elevenlabs/loop-closure-client.js';
 import {
   PomeriumMcpClient,
   PomeriumPolicyPort,
@@ -12,6 +13,7 @@ import type { VerificationEvidence } from '../domain/types.js';
 import { RecruitingLoopCoordinator } from '../engine/coordinator.js';
 import { FakePolicyPort, FakeRecruitingOpsPort, FakeZeroPort } from '../engine/fakes/index.js';
 import type { LearningLoopResult, LoopCriteria, LoopReadiness } from '../loop/contracts.js';
+import type { LoopClosureContext, LoopClosurePort, SpokenLoopClosure } from '../loop/closure.js';
 import { FileLoopMemoryStore } from '../loop/memory-store.js';
 import { LearningLoopRunner } from '../loop/runner.js';
 import { PresentationEventHub } from '../server/presentation-events.js';
@@ -21,12 +23,20 @@ const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/;
 
 export interface EpisodeRunSnapshot {
   readonly id: string;
-  readonly status: 'running' | 'complete' | 'failed';
+  readonly status: 'running' | 'awaiting_human' | 'complete' | 'failed';
   readonly createdAt: string;
   readonly readiness: LoopReadiness | null;
   readonly reason: string | null;
   readonly lastSequence: number;
   readonly eventCount: number;
+  readonly closure: LoopClosureSnapshot | null;
+}
+
+export interface LoopClosureSnapshot {
+  readonly status: 'awaiting_response' | 'received' | 'failed';
+  readonly conversationId: string;
+  readonly responseReceived: boolean;
+  readonly closedAt: string | null;
 }
 
 interface EpisodeRunRecord {
@@ -39,6 +49,20 @@ interface EpisodeRunRecord {
   reason: string | null;
   completion: Promise<LearningLoopResult>;
   protectedSchedules: Map<string, ProtectedSchedule>;
+  terminalResult: LearningLoopResult | null;
+  closure: LoopClosureRecord | null;
+}
+
+interface LoopClosureRecord {
+  readonly status: LoopClosureSnapshot['status'];
+  readonly conversationId: string;
+  readonly callSid: string | null;
+  readonly responseDigest: string | null;
+  readonly closedAt: string | null;
+}
+
+export interface EpisodeManagerOptions {
+  readonly closurePort?: LoopClosurePort | null;
 }
 
 export interface ProtectedScheduleInput {
@@ -55,8 +79,15 @@ export interface ProtectedSchedule extends ProtectedScheduleInput {
 
 export class EpisodeManager {
   private readonly runs = new Map<string, EpisodeRunRecord>();
+  private readonly closurePort: LoopClosurePort | null;
 
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    options: EpisodeManagerOptions = {},
+  ) {
+    this.closurePort =
+      options.closurePort === undefined ? createLoopClosurePort(config) : options.closurePort;
+  }
 
   start(requestedId?: string, criteria: Partial<LoopCriteria> = {}): EpisodeRunSnapshot {
     if (this.config.DEMO_MODE === 'live') {
@@ -64,7 +95,11 @@ export class EpisodeManager {
         'live mode requires real Zero and outbound adapters; use hybrid for Pomerium with the synthetic recruiting world',
       );
     }
-    if ([...this.runs.values()].some((record) => record.status === 'running')) {
+    if (
+      [...this.runs.values()].some(
+        (record) => record.status === 'running' || record.status === 'awaiting_human',
+      )
+    ) {
       throw new EpisodeConflictError('another learning loop is already running');
     }
     const id = requestedId ?? `loop-${randomUUID()}`;
@@ -84,6 +119,8 @@ export class EpisodeManager {
       reason: null,
       completion: Promise.resolve(null as never),
       protectedSchedules: new Map(),
+      terminalResult: null,
+      closure: null,
     };
     this.runs.set(id, record);
 
@@ -148,11 +185,26 @@ export class EpisodeManager {
 
     record.completion = runner
       .run()
-      .then((result) => {
-        record.status = result.status;
+      .then(async (result) => {
         record.readiness = result.readiness;
         record.reason = result.reason;
-        hub.publishTerminal(result);
+        record.terminalResult = result;
+        if (this.closurePort === null) {
+          record.status = result.status;
+          hub.publishTerminal(result);
+          return result;
+        }
+
+        const receipt = await this.closurePort.requestClosure(loopClosureContext(id, result));
+        record.closure = {
+          status: 'awaiting_response',
+          conversationId: receipt.conversationId,
+          callSid: receipt.callSid ?? null,
+          responseDigest: null,
+          closedAt: null,
+        };
+        record.status = 'awaiting_human';
+        hub.publishClosureRequested(receipt.conversationId);
         return result;
       })
       .catch((error: unknown) => {
@@ -177,6 +229,61 @@ export class EpisodeManager {
 
   evidence(id: string, evidenceId: string): VerificationEvidence | null {
     return this.runs.get(id)?.evidence.get(evidenceId) ?? null;
+  }
+
+  closeWithSpokenResponse(input: SpokenLoopClosure): EpisodeRunSnapshot {
+    const record = this.runs.get(input.loopId);
+    if (record === undefined) throw new LoopClosureNotFoundError(input.loopId);
+    if (record.closure === null || record.terminalResult === null) {
+      throw new LoopClosureConflictError('the loop is not awaiting a phone response');
+    }
+    if (record.closure.conversationId !== input.conversationId) {
+      throw new LoopClosureConflictError('the conversation does not match the pending loop');
+    }
+    const responseDigest = createHash('sha256').update(input.response).digest('hex');
+    if (record.closure.status === 'received') {
+      if (record.closure.responseDigest !== responseDigest) {
+        throw new LoopClosureConflictError('the loop was already closed with another response');
+      }
+      return this.snapshot(record);
+    }
+    if (record.closure.status !== 'awaiting_response') {
+      throw new LoopClosureConflictError('the phone closure is no longer pending');
+    }
+
+    record.closure = {
+      ...record.closure,
+      status: 'received',
+      responseDigest,
+      closedAt: new Date().toISOString(),
+    };
+    record.status = record.terminalResult.status;
+    record.reason = record.terminalResult.reason;
+    record.hub.publishTerminal(record.terminalResult);
+    return this.snapshot(record);
+  }
+
+  failLoopClosure(conversationId: string, reason: string): EpisodeRunSnapshot {
+    const record = [...this.runs.values()].find(
+      (candidate) => candidate.closure?.conversationId === conversationId,
+    );
+    if (record === undefined) throw new LoopClosureNotFoundError(conversationId);
+    if (record.closure === null) throw new LoopClosureNotFoundError(conversationId);
+    if (record.closure.status === 'failed') return this.snapshot(record);
+    if (record.closure.status !== 'awaiting_response') {
+      throw new LoopClosureConflictError('the phone closure is no longer pending');
+    }
+
+    const safeReason = reason.trim().slice(0, 512) || 'phone closure failed';
+    record.closure = {
+      ...record.closure,
+      status: 'failed',
+      closedAt: new Date().toISOString(),
+    };
+    record.status = 'failed';
+    record.reason = safeReason;
+    record.hub.publishFailure(safeReason);
+    return this.snapshot(record);
   }
 
   executeProtectedSchedule(runId: string, input: ProtectedScheduleInput): ProtectedSchedule {
@@ -230,6 +337,15 @@ export class EpisodeManager {
       reason: record.reason,
       lastSequence: history.at(-1)?.sequence ?? 0,
       eventCount: history.length,
+      closure:
+        record.closure === null
+          ? null
+          : {
+              status: record.closure.status,
+              conversationId: record.closure.conversationId,
+              responseReceived: record.closure.responseDigest !== null,
+              closedAt: record.closure.closedAt,
+            },
     };
   }
 
@@ -290,6 +406,15 @@ export class EpisodeManager {
 
 export class EpisodeConflictError extends Error {}
 
+export class LoopClosureNotFoundError extends Error {
+  public constructor(id: string) {
+    super(`No pending phone closure was found for ${id}.`);
+    this.name = 'LoopClosureNotFoundError';
+  }
+}
+
+export class LoopClosureConflictError extends Error {}
+
 function withoutOperation(schedule: ProtectedSchedule): ProtectedScheduleInput {
   return {
     episodeId: schedule.episodeId,
@@ -298,4 +423,34 @@ function withoutOperation(schedule: ProtectedSchedule): ProtectedScheduleInput {
     roleId: schedule.roleId,
     sandboxCalendarId: schedule.sandboxCalendarId,
   };
+}
+
+function loopClosureContext(loopId: string, result: LearningLoopResult): LoopClosureContext {
+  return {
+    loopId,
+    resultStatus: result.status,
+    readinessScore: result.readiness.score,
+    reason: result.reason.slice(0, 512),
+    episodeCount: result.memory.evaluations.length,
+    hostileEvaluations: result.readiness.hostileEvaluations,
+    legitimateControls: result.readiness.legitimateControls,
+    attackFamiliesCovered: result.readiness.attackFamiliesCovered,
+  };
+}
+
+function createLoopClosurePort(config: AppConfig): LoopClosurePort | null {
+  if (!config.ELEVENLABS_LOOP_CLOSURE_ENABLED) return null;
+  const apiKey = requiredConfig(config.ELEVENLABS_API_KEY, 'ELEVENLABS_API_KEY');
+  const agentId = requiredConfig(config.ELEVENLABS_AGENT_ID, 'ELEVENLABS_AGENT_ID');
+  const agentPhoneNumberId = requiredConfig(
+    config.ELEVENLABS_PHONE_NUMBER_ID,
+    'ELEVENLABS_PHONE_NUMBER_ID',
+  );
+  const toNumber = requiredConfig(config.ELEVENLABS_TO_NUMBER, 'ELEVENLABS_TO_NUMBER');
+  return new ElevenLabsLoopClosureClient({ apiKey, agentId, agentPhoneNumberId, toNumber });
+}
+
+function requiredConfig(value: string | undefined, field: string): string {
+  if (value === undefined) throw new Error(`${field} is required for ElevenLabs loop closure`);
+  return value;
 }

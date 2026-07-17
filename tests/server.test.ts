@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,6 +6,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { readConfig } from '../src/config.js';
+import type {
+  LoopClosureContext,
+  LoopClosurePort,
+  LoopClosureReceipt,
+} from '../src/loop/closure.js';
+import { EpisodeManager } from '../src/runtime/episode-manager.js';
 import { createArenaApp } from '../src/server/http.js';
 import { replayEvents } from '../public/app.js';
 
@@ -48,17 +55,17 @@ describe('arena HTTP and SSE runtime', () => {
       }),
     });
     expect(started.status).toBe(202);
-    const startBody = (await started.json()) as { id: string };
-    const result = await manager.wait(startBody.id);
+    const startedBody = (await started.json()) as { id: string };
+    const result = await manager.wait(startedBody.id);
     expect(result.status).toBe('complete');
-    const presentation = replayEvents([...(manager.hub(startBody.id)?.history ?? [])]);
+    const presentation = replayEvents([...(manager.hub(startedBody.id)?.history ?? [])]);
     expect(presentation).toMatchObject({
       episodeStatus: 'complete',
       readiness: { score: 100, hostileEvaluations: 4, legitimateControls: 4 },
       metrics: { policyBreaches: 0 },
     });
 
-    const snapshot = await fetch(`${baseUrl}/api/episodes/${startBody.id}`);
+    const snapshot = await fetch(`${baseUrl}/api/episodes/${startedBody.id}`);
     expect(await snapshot.json()).toMatchObject({
       id: 'http-loop-test',
       status: 'complete',
@@ -66,11 +73,11 @@ describe('arena HTTP and SSE runtime', () => {
     });
 
     const controller = new AbortController();
-    const stream = await fetch(`${baseUrl}/api/episodes/${startBody.id}/events`, {
+    const stream = await fetch(`${baseUrl}/api/episodes/${startedBody.id}/events`, {
       signal: controller.signal,
     });
     expect(stream.headers.get('content-type')).toContain('text/event-stream');
-    expect(manager.hub(startBody.id)?.history[0]).toMatchObject({
+    expect(manager.hub(startedBody.id)?.history[0]).toMatchObject({
       sequence: 1,
       kind: 'episode_started',
     });
@@ -108,4 +115,154 @@ describe('arena HTTP and SSE runtime', () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'episode_start_unauthorized' });
   });
+
+  it('waits for a signed ElevenLabs spoken response before closing the loop', async () => {
+    const memoryDirectory = await mkdtemp(join(tmpdir(), 'loop-phone-closure-test-'));
+    const webhookSecret = 'elevenlabs-webhook-secret-for-tests';
+    const config = readConfig({
+      SERVICE_ROLE: 'arena',
+      DEMO_MODE: 'fake',
+      DEMO_STEP_DELAY_MS: '0',
+      LOOP_MEMORY_DIRECTORY: memoryDirectory,
+      ELEVENLABS_LOOP_CLOSURE_ENABLED: 'true',
+      INTERNAL_AGENT_TOKEN: 'operator-token-at-least-24-characters',
+      ELEVENLABS_API_KEY: 'elevenlabs-api-key-for-contract-tests',
+      ELEVENLABS_AGENT_ID: 'agent-phone-test',
+      ELEVENLABS_PHONE_NUMBER_ID: 'phone-number-test',
+      ELEVENLABS_TO_NUMBER: '+14155550123',
+      ELEVENLABS_WEBHOOK_SECRET: webhookSecret,
+    });
+    const closurePort = new FakeLoopClosurePort({
+      conversationId: 'conversation-phone-test',
+      callSid: 'call-phone-test',
+    });
+    const manager = new EpisodeManager(config, { closurePort });
+    const { app } = createArenaApp(config, manager);
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('server address missing');
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const startRequestBody = JSON.stringify({
+      id: 'phone-closure-loop',
+      criteria: {
+        readinessThreshold: 0,
+        minimumHostileEvaluations: 1,
+        minimumLegitimateControls: 1,
+      },
+    });
+    const unauthorized = await fetch(`${baseUrl}/api/episodes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: startRequestBody,
+    });
+    expect(unauthorized.status).toBe(401);
+    expect(closurePort.contexts).toHaveLength(0);
+
+    const started = await fetch(`${baseUrl}/api/episodes`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer operator-token-at-least-24-characters',
+        'Content-Type': 'application/json',
+      },
+      body: startRequestBody,
+    });
+    expect(started.status).toBe(202);
+    await manager.wait('phone-closure-loop');
+
+    expect(closurePort.contexts).toEqual([
+      expect.objectContaining({
+        loopId: 'phone-closure-loop',
+        resultStatus: 'complete',
+        readinessScore: 100,
+        episodeCount: 4,
+      }),
+    ]);
+    expect(manager.get('phone-closure-loop')).toMatchObject({
+      status: 'awaiting_human',
+      closure: {
+        status: 'awaiting_response',
+        conversationId: 'conversation-phone-test',
+        responseReceived: false,
+      },
+    });
+    expect(manager.hub('phone-closure-loop')?.history.map(({ kind }) => kind)).not.toContain(
+      'loop_completed',
+    );
+    expect(manager.hub('phone-closure-loop')?.history.at(-1)?.kind).toBe('loop_closure_requested');
+
+    const timestamp = Math.floor(Date.now() / 1_000);
+    const rawBody = JSON.stringify({
+      type: 'post_call_transcription',
+      event_timestamp: timestamp,
+      data: {
+        agent_id: 'agent-phone-test',
+        conversation_id: 'conversation-phone-test',
+        status: 'done',
+        transcript: [
+          { role: 'agent', message: 'What should I record to close this loop?' },
+          { role: 'user', message: 'Close it. The result looks good.' },
+          { role: 'agent', message: 'Got it. Thank you.' },
+          { role: 'user', message: 'Thanks, bye.' },
+        ],
+        conversation_initiation_client_data: {
+          dynamic_variables: { loop_id: 'phone-closure-loop' },
+        },
+      },
+    });
+    const digest = createHmac('sha256', webhookSecret)
+      .update(`${timestamp}.${rawBody}`)
+      .digest('hex');
+    const webhookResponse = await fetch(`${baseUrl}/api/webhooks/elevenlabs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ElevenLabs-Signature': `t=${timestamp},v0=${digest}`,
+      },
+      body: rawBody,
+    });
+
+    expect(webhookResponse.status).toBe(200);
+    expect(await webhookResponse.json()).toEqual({
+      status: 'closed',
+      loopId: 'phone-closure-loop',
+    });
+    expect(manager.get('phone-closure-loop')).toMatchObject({
+      status: 'complete',
+      closure: {
+        status: 'received',
+        conversationId: 'conversation-phone-test',
+        responseReceived: true,
+      },
+    });
+    expect(manager.hub('phone-closure-loop')?.history.map(({ kind }) => kind)).toContain(
+      'loop_completed',
+    );
+
+    const duplicateResponse = await fetch(`${baseUrl}/api/webhooks/elevenlabs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ElevenLabs-Signature': `t=${timestamp},v0=${digest}`,
+      },
+      body: rawBody,
+    });
+    expect(duplicateResponse.status).toBe(200);
+    expect(
+      manager.hub('phone-closure-loop')?.history.filter(({ kind }) => kind === 'loop_completed'),
+    ).toHaveLength(1);
+  });
 });
+
+class FakeLoopClosurePort implements LoopClosurePort {
+  public readonly contexts: LoopClosureContext[] = [];
+
+  public constructor(private readonly receipt: LoopClosureReceipt) {}
+
+  public requestClosure(context: LoopClosureContext): Promise<LoopClosureReceipt> {
+    this.contexts.push(structuredClone(context));
+    return Promise.resolve(this.receipt);
+  }
+}

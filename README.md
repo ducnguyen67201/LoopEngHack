@@ -141,11 +141,12 @@ flowchart LR
 
 The browser is a presentation client. It never receives sponsor credentials and never calls Pomerium, Zero, a recruiting system, or an agent directly. It only reduces canonical events into visual state.
 
-The three external boundaries remain vendor-neutral ports:
+The four external boundaries remain vendor-neutral ports:
 
 - `RecruitingOpsPort` creates the sandbox role, sources candidates, sends outreach, reads events, and schedules the controlled screen.
 - `PolicyPort` authorizes privileged tool attempts under the active service identity.
 - `ZeroPort` discovers and invokes only allowlisted public-verification capabilities within an episode budget.
+- `LoopClosurePort` requests the optional operator phone checkpoint without coupling the learning runtime to ElevenLabs.
 
 Because the coordinator depends on ports, deterministic, hybrid, and future live adapters use the same engine and UI contracts.
 
@@ -234,6 +235,7 @@ The default commands are intentionally safe and deterministic. For hybrid setup,
 - [Pomerium Zero bootstrap](docs/runbooks/pomerium-zero-bootstrap.md)
 - [Zero adapter verification](docs/runbooks/zero.md)
 - [Local Pomerium Core proof](docs/runbooks/pomerium-core-local.md)
+- [ElevenLabs phone closure](docs/runbooks/elevenlabs-loop-closure.md)
 
 Hybrid mode sends the Sourcer authorization probe, Controller authorization probe, and consequential scheduling call through real identity-scoped Pomerium MCP routes. Recruiting and Zero remain synthetic, so hybrid output must not be labeled as fully live sponsor provenance.
 
@@ -246,6 +248,7 @@ Hybrid mode sends the Sourcer authorization probe, Controller authorization prob
 - [x] Fixture replay plus resumable SSE streaming to the 8-bit UI
 - [x] Pomerium-guarded MCP scheduling path and upstream JWT verification
 - [x] Pomerium MCP client and Zero adapter boundaries with tests
+- [x] Optional ElevenLabs call that waits for an operator response before closing the loop
 - [ ] Capture the real Pomerium same-tool deny/allow proof in hybrid mode
 - [ ] Complete a live Zero capability invocation
 - [ ] Connect the production recruiting adapter at `RecruitingOpsPort`

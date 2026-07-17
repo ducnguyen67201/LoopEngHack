@@ -5,7 +5,11 @@ import type { GameEvent, RedTechnique } from '../domain/types.js';
 import type { LearningLoopResult, LoopReadiness } from '../loop/contracts.js';
 
 export type PresentationEventKind =
-  GameEvent['kind'] | 'inner_episode_completed' | 'learning_episode_completed' | 'loop_completed';
+  | GameEvent['kind']
+  | 'inner_episode_completed'
+  | 'learning_episode_completed'
+  | 'loop_closure_requested'
+  | 'loop_completed';
 
 export interface PresentationEvent {
   readonly schemaVersion: 1;
@@ -81,6 +85,14 @@ export class PresentationEventHub implements EventSink {
     );
   }
 
+  publishClosureRequested(conversationId: string): void {
+    this.enqueue(
+      this.synthetic('loop_closure_requested', 'learn', 'started', {
+        conversationId,
+      }),
+    );
+  }
+
   publishFailure(reason: string): void {
     this.enqueue(
       this.synthetic('error', 'learn', 'failed', {
@@ -106,7 +118,10 @@ export class PresentationEventHub implements EventSink {
   }
 
   private synthetic(
-    kind: Extract<PresentationEventKind, 'learning_episode_completed' | 'loop_completed' | 'error'>,
+    kind: Extract<
+      PresentationEventKind,
+      'learning_episode_completed' | 'loop_closure_requested' | 'loop_completed' | 'error'
+    >,
     phase: GameEvent['phase'],
     status: PresentationEvent['status'],
     payload: Readonly<Record<string, unknown>>,
@@ -117,7 +132,9 @@ export class PresentationEventHub implements EventSink {
         ? `Learning loop converged at readiness ${String(payload.readinessScore)}`
         : kind === 'error'
           ? `Learning loop stopped safely: ${String(payload.reason)}`
-          : `Episode evaluated at readiness ${String(payload.readinessScore)}`;
+          : kind === 'loop_closure_requested'
+            ? 'Learning finished; waiting for the operator phone response'
+            : `Episode evaluated at readiness ${String(payload.readinessScore)}`;
     return {
       schemaVersion: 1,
       id: `stream-${this.runId}-${sequence}`,
@@ -131,7 +148,12 @@ export class PresentationEventHub implements EventSink {
       source: 'agent-loop',
       status,
       summary,
-      visualCue: kind === 'error' ? 'error' : 'arena.complete',
+      visualCue:
+        kind === 'error'
+          ? 'error'
+          : kind === 'loop_closure_requested'
+            ? 'arena.phone'
+            : 'arena.complete',
       payload,
       proof: { eventHash: eventDigest(this.runId, sequence, kind, payload) },
     };
