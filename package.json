@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "demo": "tsx scripts/demo.ts",
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
     "simulate": "tsx src/engine/demo.ts",

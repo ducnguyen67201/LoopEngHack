@@ -33,12 +33,17 @@ compose.yaml      Recruiting service topology and Pomerium data plane
 
 ```bash
 npm ci
+npm run demo
 npm run typecheck
 npm run lint
 npm test
 npm run build
 docker compose config
 ```
+
+`npm run demo` starts the fixture-only arena at `http://127.0.0.1:4173/?autoplay=1`, opens it in
+the default browser, and automatically replays the complete sponsor-safe story. Set
+`DEMO_NO_OPEN=1` when running it in CI or another headless environment.
 
 To connect the Pomerium Zero data plane, follow
 [`docs/runbooks/pomerium-zero-bootstrap.md`](docs/runbooks/pomerium-zero-bootstrap.md).

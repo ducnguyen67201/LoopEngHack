@@ -1,104 +1,86 @@
-const DEFAULT_INTERVAL_MS = 1650;
-const ALLOWED_SPEEDS = new Set([0.5, 1, 2]);
+const DEFAULT_FIXTURE_URL = '/fixtures/hire-me-if-you-can-events.json';
 
-export async function loadGoldenFixture(url, fetcher = fetch) {
-  const response = await fetcher(url, { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Fixture request failed with HTTP ${response.status}.`);
-  const fixture = await response.json();
-  if (!fixture || (typeof fixture !== 'object' && !Array.isArray(fixture))) {
-    throw new Error('Fixture response is not a JSON object.');
+/**
+ * Deterministic presenter source. It deliberately knows nothing about agents or sponsor tools.
+ */
+export class FixtureEventSource {
+  constructor({ fixtureUrl = DEFAULT_FIXTURE_URL } = {}) {
+    this.fixtureUrl = fixtureUrl;
   }
-  return fixture;
+
+  async load() {
+    const response = await fetch(this.fixtureUrl, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Fixture request failed with ${response.status}`);
+    }
+
+    const fixture = await response.json();
+    if (!fixture || !Array.isArray(fixture.events)) {
+      throw new Error('Fixture does not contain an events array');
+    }
+
+    return fixture;
+  }
 }
 
-export class FixtureReplay {
-  #events;
-  #onEvent;
-  #onRestart;
-  #onChange;
-  #timer = null;
-  #cursor = 0;
-  #speed = 1;
-  #isPlaying = false;
-
-  constructor(events, { onEvent, onRestart = () => {}, onChange = () => {} }) {
-    if (!Array.isArray(events)) throw new TypeError('FixtureReplay events must be an array.');
-    if (typeof onEvent !== 'function') throw new TypeError('FixtureReplay requires onEvent.');
-    this.#events = [...events];
-    this.#onEvent = onEvent;
-    this.#onRestart = onRestart;
-    this.#onChange = onChange;
+/**
+ * One-way live source for the pipeline branch. Native EventSource automatically reconnects and
+ * sends Last-Event-ID when the server includes an `id:` line for every message.
+ */
+export class LiveEventSource {
+  constructor({ episodeId, onEvent, onConnection, onError }) {
+    this.episodeId = episodeId;
+    this.onEvent = onEvent;
+    this.onConnection = onConnection;
+    this.onError = onError;
+    this.connection = null;
   }
 
-  get isPlaying() {
-    return this.#isPlaying;
-  }
-
-  get hasNext() {
-    return this.#cursor < this.#events.length;
-  }
-
-  get cursor() {
-    return this.#cursor;
-  }
-
-  play() {
-    if (this.#isPlaying || !this.hasNext) return;
-    this.#isPlaying = true;
-    this.#onChange();
-    this.#schedule(0);
-  }
-
-  pause() {
-    if (this.#timer !== null) clearTimeout(this.#timer);
-    this.#timer = null;
-    this.#isPlaying = false;
-    this.#onChange();
-  }
-
-  toggle() {
-    if (this.#isPlaying) this.pause();
-    else this.play();
-  }
-
-  next() {
-    if (!this.hasNext) {
-      this.pause();
-      return false;
+  connect() {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/.test(this.episodeId)) {
+      throw new Error('Live mode requires a bounded episode identifier');
     }
-    const accepted = this.#onEvent(this.#events[this.#cursor]);
-    if (accepted === false) {
-      this.pause();
-      return false;
-    }
-    this.#cursor += 1;
-    if (!this.hasNext) this.pause();
-    else this.#onChange();
-    return true;
+
+    // INTEGRATION(pipeline-runtime): serve this exact same-origin SSE route from
+    // src/server/routes/events.ts. Emit `id: <sequence>` and JSON in `data:`. Do not put a
+    // sponsor URL or credential in the browser; the server owns all adapters.
+    const endpoint = `/api/episodes/${encodeURIComponent(this.episodeId)}/events`;
+    this.connection = new globalThis.EventSource(endpoint);
+    this.onConnection?.('connecting');
+
+    this.connection.addEventListener('open', () => this.onConnection?.('live'));
+    this.connection.addEventListener('message', (message) => {
+      try {
+        this.onEvent(JSON.parse(message.data));
+      } catch (error) {
+        this.onError?.(error instanceof Error ? error : new Error('Invalid event payload'));
+      }
+    });
+    this.connection.addEventListener('error', () => {
+      this.onConnection?.('reconnecting');
+    });
   }
 
-  restart() {
-    this.pause();
-    this.#cursor = 0;
-    this.#onRestart();
-    this.#onChange();
+  close() {
+    this.connection?.close();
+    this.connection = null;
+    this.onConnection?.('closed');
   }
+}
 
-  setSpeed(speed) {
-    if (!ALLOWED_SPEEDS.has(speed)) throw new RangeError('Replay speed must be 0.5, 1, or 2.');
-    this.#speed = speed;
-    if (this.#isPlaying) {
-      if (this.#timer !== null) clearTimeout(this.#timer);
-      this.#schedule();
-    }
-    this.#onChange();
-  }
+export function readLaunchOptions(search = globalThis.location?.search ?? '') {
+  const params = new URLSearchParams(search);
+  const requestedMode = params.get('mode') ?? 'fake';
+  const mode = ['fake', 'recorded', 'live', 'hybrid'].includes(requestedMode)
+    ? requestedMode
+    : 'fake';
 
-  #schedule(delay = DEFAULT_INTERVAL_MS / this.#speed) {
-    this.#timer = setTimeout(() => {
-      this.#timer = null;
-      const advanced = this.next();
-      if (advanced && this.#isPlaying && this.hasNext) this.#schedule();
-    }, delay);
-  }
+  return {
+    mode,
+    episodeId: params.get('episode') ?? '',
+    autoplay: params.get('autoplay') === '1',
+  };
 }
