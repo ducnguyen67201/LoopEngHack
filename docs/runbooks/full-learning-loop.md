@@ -34,8 +34,10 @@ ports are deterministic synthetic adapters.
 
 ## Pomerium hybrid mode
 
-Hybrid mode keeps the recruiting world and Zero evidence synthetic, but sends both authorization
-probes and the consequential scheduling call through real identity-scoped Pomerium MCP routes.
+With the default adapter selections, hybrid mode keeps the recruiting world, Zero evidence, and
+calendar operation synthetic, but sends both authorization probes and the consequential scheduling
+call through real identity-scoped Pomerium MCP routes. Any of the three data adapters can also be
+enabled independently in hybrid mode for a bounded integration smoke test.
 
 1. Create distinct Pomerium Zero Service Accounts for `outbound-sourcer-service` and
    `hiring-controller-service`.
@@ -101,8 +103,52 @@ Relevant official documentation:
 ## Mode honesty
 
 - `fake`: adaptive loop with deterministic synthetic adapters.
-- `hybrid`: adaptive loop plus real Pomerium authorization; synthetic recruiting and Zero.
+- `hybrid`: adaptive loop plus real Pomerium authorization; outbound, Zero, and Calendar remain
+  synthetic unless their individual mode flags select real adapters.
 - `recorded`: presentation fallback only.
-- `live`: intentionally fails closed until real outbound and Zero runtime factories are installed.
+- `live`: requires real Pomerium routes plus `ZERO_MODE=live`, `RECRUITING_OPS_MODE=http`, and
+  `CALENDAR_MODE=google`. Configuration parsing fails if any real adapter is omitted.
 
-Never label hybrid output as fully live sponsor provenance.
+The HTTP recruiting adapter implements this repository's bounded gateway contract; it is not an
+official Fillmore contract. Never label a run as Fillmore-proven until its mapping has been tested
+against an actual sponsor endpoint.
+
+## Full credential-gated pipeline
+
+Live mode composes the same coordinator with all four external boundaries. Copy `.env.example` to
+an ignored `.env`, then provide the Pomerium fields above plus:
+
+```dotenv
+DEMO_MODE=live
+
+ZERO_MODE=live
+ZERO_RUNNER=zero
+ZERO_ALLOWED_CAPABILITY_REFS=<approved-capability-reference>
+ZERO_ALLOWED_TARGET_DOMAINS=<public-test-domain>
+ZERO_TARGET_BASE_URL=https://<public-test-domain>/controlled-claims/
+ZERO_MAX_PER_CALL_USD=0.05
+
+RECRUITING_OPS_MODE=http
+OUTBOUND_RECRUITING_BASE_URL=https://<sponsor-sandbox-gateway>/
+OUTBOUND_RECRUITING_BEARER_TOKEN=<least-privilege-sandbox-token>
+
+CALENDAR_MODE=google
+GOOGLE_CALENDAR_OAUTH_ACCESS_TOKEN=<short-lived-calendar-token>
+GOOGLE_CALENDAR_SANDBOX_ID=<secondary-team-calendar-id>
+SANDBOX_CALENDAR_ATTENDEE_EMAIL=<team-controlled-test-address>
+SANDBOX_SCREEN_START_AT=2026-07-18T18:00:00Z
+SANDBOX_SCREEN_END_AT=2026-07-18T18:30:00Z
+```
+
+The live run performs bounded role creation, controlled candidate sourcing, template-based test
+outreach, candidate-event reading, allowlisted Zero verification, Pomerium deny/allow checks, and
+one evidence-bound Google Calendar operation. It never accepts a destination URL, recipient, or
+free-form outbound message from candidate content.
+
+Before the first outbound side effect, the manager probes the Zero CLI and verifies that discovery
+returns an allowlisted capability. This preflight is read-only and does not prove the funded-wallet
+invocation; use the explicitly approved Zero smoke script for that proof.
+
+Before spending funds or creating external records, run the isolated checks in the outbound, Zero,
+Calendar, and Pomerium runbooks. A green local suite proves composition and contract behavior; only
+redacted provider audit evidence proves the configured external services.

@@ -225,6 +225,25 @@ describe('termination and replay edge behavior', () => {
     );
   });
 
+  it('stops the episode when a recruiting side effect returns an error observation', async () => {
+    const ids = new FakeIdGenerator();
+    const coordinator = new RecruitingLoopCoordinator({
+      recruitingOps: new FakeRecruitingOpsPort({
+        ids,
+        failures: { sendOutreach: 'upstream_failure' },
+      }),
+      zero: new FakeZeroPort({ ids }),
+      policy: new FakePolicyPort({ ids }),
+      clock: new FakeClock(),
+      ids,
+      events: new FakeEventSink(),
+    });
+
+    await expect(coordinator.runToCompletion()).rejects.toThrow(
+      /test outreach failed closed \(upstream_failure\)/,
+    );
+  });
+
   it('rejects malformed Zero observations before learning from them', async () => {
     const runWithZero = async (transform: (observation: Observation) => Observation) => {
       const ids = new FakeIdGenerator();
@@ -260,6 +279,25 @@ describe('termination and replay edge behavior', () => {
         ),
       })),
     ).rejects.toThrow(/missing number fact cost_usd/);
+  });
+
+  it('does not emit verification or regression success events after a Zero invocation error', async () => {
+    const ids = new FakeIdGenerator();
+    const events = new FakeEventSink();
+    const coordinator = new RecruitingLoopCoordinator({
+      recruitingOps: new FakeRecruitingOpsPort({ ids }),
+      zero: new FakeZeroPort({ ids, failures: { invoke: 'upstream_failure' } }),
+      policy: new FakePolicyPort({ ids }),
+      clock: new FakeClock(),
+      ids,
+      events,
+    });
+
+    await expect(coordinator.runToCompletion()).rejects.toThrow(
+      /Zero verification failed closed \(upstream_failure\)/,
+    );
+    expect(events.events.map((event) => event.kind)).not.toContain('verification_completed');
+    expect(events.events.map((event) => event.kind)).not.toContain('regression_stored');
   });
 
   it('keeps private phase prerequisites fail-closed', () => {

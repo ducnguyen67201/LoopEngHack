@@ -204,13 +204,14 @@ export class RecruitingLoopCoordinator {
       { episodeId, attemptId, tool: 'recruiting_create_test_role', role: ROLE },
       this.context(0, 'outbound-sourcer', 'execute', attemptId),
     );
+    this.requireSuccessfulObservation(observation, 'role creation');
     this.mutate({ type: 'set_role', role: ROLE });
     this.emitObserved(observation, {
       turn: 0,
       phase: 'observe',
       kind: 'role_created',
       actor: 'outbound-sourcer',
-      summary: 'Fillmore creates the team-controlled test role.',
+      summary: 'The recruiting adapter creates the team-controlled test role.',
       visualCue: 'pipeline-search',
       payload: { roleId: ROLE.id },
     });
@@ -230,13 +231,14 @@ export class RecruitingLoopCoordinator {
       },
       this.context(1, 'outbound-sourcer', 'execute', sourceAttempt),
     );
+    this.requireSuccessfulObservation(sourced, 'candidate sourcing');
     this.mutate({ type: 'source_candidates', candidates });
     this.emitObserved(sourced, {
       turn: 1,
       phase: 'observe',
       kind: 'candidate_sourced',
       actor: 'outbound-sourcer',
-      summary: 'Fillmore sources one hostile and one legitimate synthetic candidate.',
+      summary: 'The recruiting adapter sources one hostile and one legitimate synthetic candidate.',
       visualCue: 'pipeline-search',
       payload: { candidateIds: candidates.map((candidate) => candidate.id) },
     });
@@ -253,6 +255,7 @@ export class RecruitingLoopCoordinator {
       },
       this.context(1, 'outbound-sourcer', 'execute', outreachAttempt),
     );
+    this.requireSuccessfulObservation(outreach, 'test outreach');
     this.mutate({
       type: 'set_pipeline_stage',
       candidateId: HOSTILE_CANDIDATE.id,
@@ -319,6 +322,7 @@ export class RecruitingLoopCoordinator {
       },
       this.context(2, 'outbound-sourcer', 'execute', attemptId),
     );
+    this.requireNonErrorObservation(observation, 'candidate event read');
     this.mutate({ type: 'increment_metric', metric: 'detectionMisses', amount: 1 });
     this.mutate({
       type: 'set_pipeline_stage',
@@ -428,6 +432,7 @@ export class RecruitingLoopCoordinator {
       },
       this.context(5, 'white-verifier', 'execute', discoverAttempt),
     );
+    this.requireSuccessfulObservation(discovered, 'Zero capability discovery');
     const capabilityId = this.stringFact(discovered, 'capability_id');
     const costUsd = this.numberFact(discovered, 'cost_usd');
     this.mutate({
@@ -457,6 +462,7 @@ export class RecruitingLoopCoordinator {
       },
       this.context(5, 'white-verifier', 'execute', invokeAttempt),
     );
+    this.requireSuccessfulObservation(verified, 'Zero verification');
     this.emitObserved(verified, {
       turn: 5,
       phase: 'observe',
@@ -609,6 +615,7 @@ export class RecruitingLoopCoordinator {
       },
       this.context(6, 'hiring-controller', 'execute', attemptId),
     );
+    this.requireSuccessfulObservation(scheduled, 'protected scheduling');
     this.mutate({ type: 'increment_metric', metric: 'testScreensScheduled', amount: 1 });
     this.mutate({
       type: 'set_pipeline_stage',
@@ -620,7 +627,7 @@ export class RecruitingLoopCoordinator {
       phase: 'observe',
       kind: 'screen_scheduled',
       actor: 'hiring-controller',
-      summary: 'Fillmore schedules exactly one event on the sandbox calendar.',
+      summary: 'The protected calendar adapter schedules exactly one sandbox event.',
       visualCue: 'controller-schedule',
       payload: {
         candidateId: LEGITIMATE_CANDIDATE.id,
@@ -822,6 +829,20 @@ export class RecruitingLoopCoordinator {
       throw new Error(`observation is missing number fact ${key}`);
     }
     return value;
+  }
+
+  private requireNonErrorObservation(observation: Observation, operation: string): void {
+    if (observation.status === 'error') {
+      throw new Error(`${operation} failed closed (${observation.errorCategory ?? 'unknown'})`);
+    }
+  }
+
+  private requireSuccessfulObservation(observation: Observation, operation: string): void {
+    if (observation.status !== 'success') {
+      throw new Error(
+        `${operation} failed closed (${observation.errorCategory ?? observation.status})`,
+      );
+    }
   }
 }
 

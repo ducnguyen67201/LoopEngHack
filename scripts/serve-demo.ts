@@ -20,11 +20,11 @@ app.get('/health', (_request, response) => {
   response.json({ status: 'ok', service: 'recruiting-demo-ui' });
 });
 app.get('/fixtures/recruiting-contract-events.json', (_request, response) => {
-  response.sendFile(fixturePath);
+  response.sendFile(fixturePath, { dotfiles: 'allow' });
 });
 app.use(express.static(publicRoot, { extensions: ['html'] }));
 app.get('*path', (_request, response) => {
-  response.sendFile(`${publicRoot}/index.html`);
+  response.sendFile(`${publicRoot}/index.html`, { dotfiles: 'allow' });
 });
 
 app.listen(port, '127.0.0.1', () => {

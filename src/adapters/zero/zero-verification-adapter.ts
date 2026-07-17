@@ -24,6 +24,7 @@ export interface ZeroVerificationAdapterOptions {
   transportLabel?: string;
   zeroCliVersion?: string;
   discoveryDetailLimit?: number;
+  allowedCapabilityRefs?: readonly string[];
 }
 
 export class ZeroVerificationAdapter {
@@ -33,6 +34,7 @@ export class ZeroVerificationAdapter {
   private readonly transportLabel: string;
   private readonly zeroCliVersion: string | undefined;
   private readonly discoveryDetailLimit: number;
+  private readonly allowedCapabilityRefs: ReadonlySet<string> | undefined;
 
   public constructor(options: ZeroVerificationAdapterOptions) {
     this.transport = options.transport;
@@ -40,6 +42,9 @@ export class ZeroVerificationAdapter {
     this.transportLabel = options.transportLabel ?? 'zero-cli';
     this.zeroCliVersion = options.zeroCliVersion;
     this.discoveryDetailLimit = options.discoveryDetailLimit ?? 8;
+    this.allowedCapabilityRefs = options.allowedCapabilityRefs
+      ? new Set(options.allowedCapabilityRefs)
+      : undefined;
   }
 
   public async discover(input: DiscoverVerificationInput): Promise<ZeroDiscoveryResult> {
@@ -65,7 +70,23 @@ export class ZeroVerificationAdapter {
       });
     }
 
-    const selection = selectCapability(input.need, [...byRef.values()], input.budget);
+    const allowlistRejected: ZeroDiscoveryResult['rejected'] = [];
+    const eligible = [...byRef.values()].filter((candidate) => {
+      if (
+        this.allowedCapabilityRefs === undefined ||
+        [candidate.ref, candidate.uid, candidate.slug].some(
+          (ref) => ref !== undefined && this.allowedCapabilityRefs?.has(ref) === true,
+        )
+      ) {
+        return true;
+      }
+      allowlistRejected.push({
+        ref: candidate.ref,
+        reason: 'capability reference is not explicitly allowlisted',
+      });
+      return false;
+    });
+    const selection = selectCapability(input.need, eligible, input.budget);
     const result: ZeroDiscoveryResult = {
       schemaVersion: 1,
       discoveryId: `zero-discovery-${randomUUID()}`,
@@ -76,7 +97,7 @@ export class ZeroVerificationAdapter {
       query,
       selected: selection.selected,
       alternatives: selection.alternatives,
-      rejected: selection.rejected,
+      rejected: [...allowlistRejected, ...selection.rejected],
       provenance: {
         source: 'zero',
         transport: this.transportLabel,

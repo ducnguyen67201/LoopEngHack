@@ -1,8 +1,9 @@
 # Pomerium Zero bootstrap
 
-This runbook connects the local Docker data plane to Pomerium Zero. It does not
-yet prove MCP tool authorization; that proof is added after the recruiting
-contracts and `recruiting_schedule_screen` tool are frozen.
+This runbook connects the local Docker data plane to Pomerium Zero. The local
+Core runbook proves route-scoped MCP tool authorization. Zero service-account
+identity proof remains credential-dependent and is not established merely by
+passing the local Core smoke test.
 
 ## 1. Copy the generated values
 
@@ -90,6 +91,20 @@ under `deny` so MCP session setup and `tools/list` continue to work.
 The upstream route will point to the internal Streamable HTTP endpoint, for
 example `http://arena:8080/mcp`; it must not point back to the public Pomerium
 hostname.
+
+For the final proof, run the same protected tool and identical input through
+each authenticated service-account route. Save the two request IDs and
+correlate them with the Pomerium authorization log:
+
+```text
+outbound-sourcer  -> recruiting_schedule_screen -> DENY -> request <id>
+hiring-controller -> recruiting_schedule_screen -> ALLOW -> request <id>
+```
+
+Do not mark this step complete when either service-account credential, route,
+JWKS/issuer/audience setting, or authorization log is unavailable. The local
+Core proof is useful fallback evidence, but it is not a substitute for this
+identity-scoped Zero proof.
 
 ## Troubleshooting
 

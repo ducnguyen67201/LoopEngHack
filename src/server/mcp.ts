@@ -75,17 +75,17 @@ async function handleMcpRequest(
         commit: z.boolean().default(false),
       },
     },
-    (input) => {
+    async (input) => {
       guard.requireTool(identity, 'recruiting_schedule_screen');
       if (!input.commit) {
-        return Promise.resolve({
+        return {
           content: [
             {
               type: 'text' as const,
               text: JSON.stringify({ authorized: true, actor: identity.actor }),
             },
           ],
-        });
+        };
       }
       const requiredInput = {
         episodeId: requireInput(input.episode_id, 'episode_id'),
@@ -94,10 +94,10 @@ async function handleMcpRequest(
         roleId: requireInput(input.role_id, 'role_id'),
         sandboxCalendarId: requireInput(input.sandbox_calendar_id, 'sandbox_calendar_id'),
       };
-      const scheduled = manager.executeProtectedSchedule(input.run_id, requiredInput);
-      return Promise.resolve({
+      const scheduled = await manager.executeProtectedSchedule(input.run_id, requiredInput);
+      return {
         content: [{ type: 'text' as const, text: JSON.stringify(scheduled) }],
-      });
+      };
     },
   );
 
