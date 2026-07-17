@@ -24,13 +24,18 @@ The implementation intentionally does not call an undocumented Zero REST API.
 
 ## Relevant public Zero capabilities observed 2026-07-17
 
-The public browse page listed these recruiting-relevant capabilities:
+Read-only `zero search` / `zero get` checks found two especially useful options:
 
-- `LinkedIn Find Profile URL (AI-powered)` — uses AI to find a LinkedIn profile URL from a person's name and optional context.
-- `Pipe0 Person Profile Enrichment` — enriches LinkedIn/profile URLs with person profile data.
-- `Hirescrape LinkedIn Scraper` — scrapes LinkedIn profiles/pages/posts.
+- `OneShot Agent LinkedIn Profile Enrichment`
+  (`cap_z5X8x5cTSVWgyP1lOaiL8`) accepts a public LinkedIn URL and returns
+  professional-profile fields. Observed price: $0.005 per call.
+- `Data Legion Person Enrichment API (No-PII)`
+  (`cap_66RTTbxhvXk41nHoMzoBy`) accepts `social_url` and explicitly excludes
+  contact PII. Observed price: $0.01 per call.
 
-The local adapter allowlist currently prefers profile URL lookup and public professional-profile enrichment. It rejects contact-reveal, email, phone, messaging, or bulk lead-enrichment capabilities.
+Other results offered email or phone enrichment. The adapter rejects those,
+along with contact reveal, messaging, and bulk lead-enrichment capabilities.
+These observations were discovery-only; no paid capability was invoked.
 
 ## Setup
 
