@@ -2,7 +2,7 @@
   "name": "loop-engine-hackathon",
   "version": "0.1.0",
   "private": true,
-  "description": "LoopCTF — a Pomerium-governed self-hardening agent arena.",
+  "description": "Hire Me If You Can — a Pomerium-governed autonomous recruiting arena.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
+    "simulate": "tsx src/engine/demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

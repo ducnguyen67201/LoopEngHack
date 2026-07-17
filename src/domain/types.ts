@@ -1,62 +1,79 @@
 import type { z } from 'zod';
-
 import type {
-  arenaEventSchema,
-  arenaStateViewSchema,
-  attackMethodSchema,
-  attackResultSchema,
-  contractFixtureSchema,
-  episodeRefSchema,
-  errorEnvelopeSchema,
-  evaluationEvidenceSchema,
+  actionAttemptSchema,
+  actorIdSchema,
+  artifactReferenceSchema,
+  authorizationDecisionSchema,
+  authorizeToolCommandSchema,
+  createRoleCommandSchema,
+  discoveredCapabilitySchema,
+  discoverCapabilityCommandSchema,
+  errorCategorySchema,
+  eventKindSchema,
+  executionContextSchema,
+  factSchema,
+  gameEventSchema,
   healthResponseSchema,
-  loginResultSchema,
-  loginScenarioInputSchema,
-  pomeriumIngestionSchema,
-  promotionRequestSchema,
-  promotionResultSchema,
-  redAttackRequestSchema,
-  redMapResultSchema,
+  invokeCapabilityCommandSchema,
+  loopPhaseSchema,
+  methodMemorySchema,
+  observationSchema,
+  pipelineStageSchema,
+  provenanceSchema,
+  readCandidateEventCommandSchema,
+  recruitingContractFixtureSchema,
+  recruitingGameStateSchema,
+  redTechniqueSchema,
+  regressionRuleSchema,
+  riskSignalSchema,
+  scheduleScreenCommandSchema,
+  sendOutreachCommandSchema,
   serviceNameSchema,
-  targetHealthSchema,
-  targetVersionSchema,
-  toolInputSchemas,
+  sourceCandidatesCommandSchema,
+  syntheticCandidateSchema,
+  syntheticRoleBriefSchema,
   toolNameSchema,
-  toolOutputSchemas,
-  whiteLearnRequestSchema,
+  verificationEvidenceSchema,
+  verificationNeedSchema,
+  visualCueSchema,
   whiteMemorySchema,
-  whiteRemediationResultSchema,
 } from './schemas.js';
 
-export type ArenaEvent = z.infer<typeof arenaEventSchema>;
-export type ArenaEventDraft = Omit<ArenaEvent, 'id' | 'sequence' | 'occurredAt'>;
-export type ArenaStateView = z.infer<typeof arenaStateViewSchema>;
-export type AttackMethod = z.infer<typeof attackMethodSchema>;
-export type AttackResult = z.infer<typeof attackResultSchema>;
-export type ContractFixture = z.infer<typeof contractFixtureSchema>;
-export type EpisodeRef = z.infer<typeof episodeRefSchema>;
-export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
-export type EvaluationEvidence = z.infer<typeof evaluationEvidenceSchema>;
+export type ActionAttempt = z.infer<typeof actionAttemptSchema>;
+export type ActorId = z.infer<typeof actorIdSchema>;
+export type ArtifactReference = z.infer<typeof artifactReferenceSchema>;
+export type AuthorizationDecision = z.infer<typeof authorizationDecisionSchema>;
+export type AuthorizeToolCommand = z.infer<typeof authorizeToolCommandSchema>;
+export type CreateRoleCommand = z.infer<typeof createRoleCommandSchema>;
+export type DiscoveredCapability = z.infer<typeof discoveredCapabilitySchema>;
+export type DiscoverCapabilityCommand = z.infer<typeof discoverCapabilityCommandSchema>;
+export type ErrorCategory = z.infer<typeof errorCategorySchema>;
+export type EventKind = z.infer<typeof eventKindSchema>;
+export type ExecutionContext = z.infer<typeof executionContextSchema>;
+export type Fact = z.infer<typeof factSchema>;
+export type GameEvent = z.infer<typeof gameEventSchema>;
+export type GameEventDraft = Omit<GameEvent, 'id' | 'sequence' | 'occurredAt'>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
-export type LoginResult = z.infer<typeof loginResultSchema>;
-export type LoginScenarioInput = z.infer<typeof loginScenarioInputSchema>;
-export type PomeriumIngestion = z.infer<typeof pomeriumIngestionSchema>;
-export type PromotionRequest = z.infer<typeof promotionRequestSchema>;
-export type PromotionResult = z.infer<typeof promotionResultSchema>;
-export type RedAttackRequest = z.infer<typeof redAttackRequestSchema>;
-export type RedMapResult = z.infer<typeof redMapResultSchema>;
+export type InvokeCapabilityCommand = z.infer<typeof invokeCapabilityCommandSchema>;
+export type LoopPhase = z.infer<typeof loopPhaseSchema>;
+export type MethodMemory = z.infer<typeof methodMemorySchema>;
+export type Observation = z.infer<typeof observationSchema>;
+export type PipelineStage = z.infer<typeof pipelineStageSchema>;
+export type Provenance = z.infer<typeof provenanceSchema>;
+export type ReadCandidateEventCommand = z.infer<typeof readCandidateEventCommandSchema>;
+export type RecruitingContractFixture = z.infer<typeof recruitingContractFixtureSchema>;
+export type RecruitingGameState = z.infer<typeof recruitingGameStateSchema>;
+export type RedTechnique = z.infer<typeof redTechniqueSchema>;
+export type RegressionRule = z.infer<typeof regressionRuleSchema>;
+export type RiskSignal = z.infer<typeof riskSignalSchema>;
+export type ScheduleScreenCommand = z.infer<typeof scheduleScreenCommandSchema>;
+export type SendOutreachCommand = z.infer<typeof sendOutreachCommandSchema>;
 export type ServiceName = z.infer<typeof serviceNameSchema>;
-export type TargetHealth = z.infer<typeof targetHealthSchema>;
-export type TargetVersion = z.infer<typeof targetVersionSchema>;
+export type SourceCandidatesCommand = z.infer<typeof sourceCandidatesCommandSchema>;
+export type SyntheticCandidate = z.infer<typeof syntheticCandidateSchema>;
+export type SyntheticRoleBrief = z.infer<typeof syntheticRoleBriefSchema>;
 export type ToolName = z.infer<typeof toolNameSchema>;
-export type WhiteLearnRequest = z.infer<typeof whiteLearnRequestSchema>;
+export type VerificationEvidence = z.infer<typeof verificationEvidenceSchema>;
+export type VerificationNeed = z.infer<typeof verificationNeedSchema>;
+export type VisualCue = z.infer<typeof visualCueSchema>;
 export type WhiteMemory = z.infer<typeof whiteMemorySchema>;
-export type WhiteRemediationResult = z.infer<typeof whiteRemediationResultSchema>;
-
-export type ToolInputMap = {
-  [Name in ToolName]: z.infer<(typeof toolInputSchemas)[Name]>;
-};
-
-export type ToolOutputMap = {
-  [Name in ToolName]: z.infer<(typeof toolOutputSchemas)[Name]>;
-};

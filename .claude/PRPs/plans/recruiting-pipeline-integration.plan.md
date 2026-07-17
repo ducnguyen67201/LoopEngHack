@@ -19,14 +19,14 @@ Browser (8-bit UI)
    <- snapshot + SSE GameEvent stream
 Arena HTTP server
    -> Coordinator / engine
-      -> FillmorePort
+      -> RecruitingOpsPort
       -> ZeroPort
       -> PolicyPort
 
 Hiring controller or sourcer
    -> Pomerium protected MCP route
       -> Recruiting MCP server
-         -> fillmore_schedule_screen handler
+         -> recruiting_schedule_screen handler
             -> Fillmore adapter -> sandbox operation
 ```
 
@@ -80,7 +80,7 @@ No endpoint accepts arbitrary shell commands, URLs, actor identities, or tool na
 Expose exact frozen names and strict inputs. At minimum:
 
 - safe read/diagnostic tools;
-- `fillmore_schedule_screen` with episode, candidate, test calendar, evidence hash, and idempotency key.
+- `recruiting_schedule_screen` with episode, candidate, test calendar, evidence hash, and idempotency key.
 
 The handler must:
 
@@ -88,7 +88,7 @@ The handler must:
 2. validate input with frozen schemas;
 3. require controller-approved evidence hash;
 4. enforce sandbox allowlists again;
-5. call `FillmorePort.scheduleScreen`;
+5. call `RecruitingOpsPort.scheduleScreen`;
 6. return a normalized safe result.
 
 Defense in depth here does not replace the external Pomerium deny/allow policy.
@@ -130,7 +130,7 @@ git merge --no-ff codex/pomerium-adapter
 npm run typecheck && npm test
 git merge --no-ff codex/zero-adapter
 npm run typecheck && npm test
-git merge --no-ff codex/fillmore-adapter
+git merge --no-ff codex/outbound-recruiting-adapter
 npm run typecheck && npm test
 git merge --no-ff codex/recruiting-game-ui
 npm run typecheck && npm test
@@ -143,7 +143,7 @@ After each merge, add only composition/configuration code owned by this branch. 
 1. `POST /api/episodes` seeds synthetic role/candidate state.
 2. Runner advances engine and publishes ordered events.
 3. Fillmore adapter creates/reads the sandbox pipeline event.
-4. Sourcer calls `fillmore_schedule_screen` through Pomerium and is denied.
+4. Sourcer calls `recruiting_schedule_screen` through Pomerium and is denied.
 5. Coordinator records Pomerium observation and asks white policy for recovery.
 6. Zero adapter discovers then invokes verification; evidence artifact is hashed.
 7. Controller validates provenance/hash/regression.

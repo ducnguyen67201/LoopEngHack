@@ -14,25 +14,27 @@ const rawConfigSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
     SERVICE_ROLE: z
-      .enum(['arena', 'target', 'red-agent', 'white-agent', 'deploy-controller', 'log-bridge'])
+      .enum([
+        'arena',
+        'outbound-sourcer',
+        'white-verifier',
+        'hiring-controller',
+        'recruiting-mcp',
+        'log-bridge',
+      ])
       .default('arena'),
     PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
-    DEMO_MODE: z.enum(['live', 'recorded']).default('live'),
+    DEMO_MODE: z.enum(['fake', 'recorded', 'live']).default('fake'),
     DEMO_STEP_DELAY_MS: z.coerce.number().int().min(0).max(10_000).default(600),
     INTERNAL_AGENT_TOKEN: optionalValue(secretSchema),
     LOG_BRIDGE_TOKEN: optionalValue(secretSchema),
     ARENA_INTERNAL_URL: urlSchema.default('http://arena:8080'),
-    TARGET_V1_URL: urlSchema.default('http://target-v1:8081'),
-    TARGET_V2_URL: urlSchema.default('http://target-v2:8081'),
-    RED_AGENT_URL: urlSchema.default('http://red-agent:8091'),
-    WHITE_AGENT_URL: urlSchema.default('http://white-agent:8092'),
-    CONTROLLER_AGENT_URL: urlSchema.default('http://deploy-controller:8093'),
-    TARGET_VERSION: optionalValue(z.enum(['v1', 'v2'])),
-    RED_MCP_URL: optionalValue(urlSchema),
-    WHITE_MCP_URL: optionalValue(urlSchema),
+    RECRUITING_MCP_INTERNAL_URL: urlSchema.default('http://recruiting-mcp:8084/mcp'),
+    SOURCER_MCP_URL: optionalValue(urlSchema),
+    VERIFIER_MCP_URL: optionalValue(urlSchema),
     CONTROLLER_MCP_URL: optionalValue(urlSchema),
-    RED_POMERIUM_JWT: optionalValue(secretSchema),
-    WHITE_POMERIUM_JWT: optionalValue(secretSchema),
+    SOURCER_POMERIUM_JWT: optionalValue(secretSchema),
+    VERIFIER_POMERIUM_JWT: optionalValue(secretSchema),
     CONTROLLER_POMERIUM_JWT: optionalValue(secretSchema),
   })
   .superRefine((config, context) => {
@@ -51,23 +53,23 @@ const rawConfigSchema = z
         requireField('INTERNAL_AGENT_TOKEN');
         requireField('LOG_BRIDGE_TOKEN');
         break;
-      case 'target':
-        requireField('TARGET_VERSION');
-        break;
-      case 'red-agent':
+      case 'outbound-sourcer':
         requireField('INTERNAL_AGENT_TOKEN');
-        requireField('RED_MCP_URL');
-        requireField('RED_POMERIUM_JWT');
+        requireField('SOURCER_MCP_URL');
+        requireField('SOURCER_POMERIUM_JWT');
         break;
-      case 'white-agent':
+      case 'white-verifier':
         requireField('INTERNAL_AGENT_TOKEN');
-        requireField('WHITE_MCP_URL');
-        requireField('WHITE_POMERIUM_JWT');
+        requireField('VERIFIER_MCP_URL');
+        requireField('VERIFIER_POMERIUM_JWT');
         break;
-      case 'deploy-controller':
+      case 'hiring-controller':
         requireField('INTERNAL_AGENT_TOKEN');
         requireField('CONTROLLER_MCP_URL');
         requireField('CONTROLLER_POMERIUM_JWT');
+        break;
+      case 'recruiting-mcp':
+        requireField('INTERNAL_AGENT_TOKEN');
         break;
       case 'log-bridge':
         requireField('LOG_BRIDGE_TOKEN');

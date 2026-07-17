@@ -1,0 +1,16 @@
+name: recruiting-loop-pomerium-core
+
+services:
+  pomerium-core:
+    image: ${POMERIUM_CORE_IMAGE:-pomerium/pomerium:main}
+    restart: unless-stopped
+    env_file:
+      - .pomerium/core.env
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - '8443:443'
+    volumes:
+      - ./config/pomerium/core-local.yaml:/pomerium/config.yaml:ro
+      - ./.pomerium/core-cert.pem:/pomerium/certs/core-cert.pem:ro
+      - ./.pomerium/core-key.pem:/pomerium/certs/core-key.pem:ro
