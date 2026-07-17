@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Hire Me If You Can — an observable, identity-gated recruiting agent loop"
+    />
+    <title>Hire Me If You Can — Recruiting Loop</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="scanlines" aria-hidden="true"></div>
+    <main class="app-shell">
+      <header class="game-header">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div>
+            <p class="eyebrow">ONE COMPLETE RECRUITING LOOP</p>
+            <h1>HIRE ME <span>IF YOU CAN</span></h1>
+            <p class="tagline">Discover • persuade • contain • verify • schedule • learn</p>
+          </div>
+        </div>
+        <div class="header-badges" aria-label="Demo status">
+          <span id="mode-badge" class="status-badge" data-state="fake">FAKE</span>
+          <span id="connection-label" class="status-badge" data-state="fixture-ready"
+            >FIXTURE READY</span
+          >
+        </div>
+      </header>
+
+      <section class="mission-strip" aria-label="Current episode status">
+        <div class="mission-objective">
+          <span>MISSION</span>
+          <strong id="episode-objective"
+            >Verify one candidate and schedule one sandbox screen</strong
+          >
+        </div>
+        <div><span>TURN</span><strong id="turn-value">0 / 8</strong></div>
+        <div><span>PHASE</span><strong id="phase-value">SENSE</strong></div>
+        <div><span>RED FLAGS</span><strong id="red-flags" class="red-text">0</strong></div>
+        <div><span>WHITE SAVES</span><strong id="white-saves" class="green-text">0</strong></div>
+        <div>
+          <span>POLICY BREACHES</span><strong id="policy-breaches" class="green-text">0</strong>
+        </div>
+      </section>
+
+      <section class="arena-grid" aria-label="Recruiting agent arena">
+        <article class="lane red-lane" aria-labelledby="red-lane-title">
+          <header class="panel-header">
+            <div>
+              <span class="panel-kicker">RED LOOP</span>
+              <h2 id="red-lane-title">SOCIAL ENGINEER</h2>
+            </div>
+            <span class="lane-state">LEARN THE TARGET</span>
+          </header>
+
+          <div class="actor-stage red-stage">
+            <div class="sprite-aura" aria-hidden="true"></div>
+            <img
+              id="red-sprite"
+              class="game-sprite"
+              src="/assets/sprites/social-engineer/idle.png"
+              alt="8-bit social engineer agent"
+            />
+            <div class="actor-copy">
+              <span class="actor-label">CURRENT MOVE</span>
+              <strong id="technique-value">No technique selected</strong>
+              <div class="score-row"><span>Effectiveness</span><b id="red-score">0%</b></div>
+              <div class="score-track" aria-hidden="true"><i id="red-score-bar"></i></div>
+            </div>
+          </div>
+
+          <section class="memory-card" aria-labelledby="red-memory-title">
+            <h3 id="red-memory-title"><span>◆</span> RED MEMORY</h3>
+            <ul id="red-memory">
+              <li>No attempts observed</li>
+            </ul>
+          </section>
+        </article>
+
+        <article class="center-stage" aria-labelledby="arena-title">
+          <header class="panel-header center-header">
+            <div>
+              <span class="panel-kicker">LIVE WORKFLOW</span>
+              <h2 id="arena-title">RECRUITING ARENA</h2>
+            </div>
+            <div class="source-health" aria-label="Integration health">
+              <span data-source-health="zero" data-state="ready">ZERO <strong>READY</strong></span>
+              <span data-source-health="pomerium" data-state="ready"
+                >POMERIUM <strong>READY</strong></span
+              >
+              <span data-source-health="fillmore" data-state="ready"
+                >FILLMORE <strong>READY</strong></span
+              >
+              <span data-source-health="agent-loop" data-state="ready"
+                >LOOP <strong>READY</strong></span
+              >
+            </div>
+          </header>
+
+          <div class="workflow-stage">
+            <section class="candidate-card" aria-labelledby="candidate-name">
+              <div class="candidate-avatar-wrap">
+                <img
+                  id="recruit-sprite"
+                  class="candidate-sprite"
+                  src="/assets/sprites/recruits/infrastructure-engineer.png"
+                  alt="8-bit synthetic recruit"
+                />
+              </div>
+              <div class="candidate-details">
+                <span id="candidate-status" class="candidate-status" data-state="unverified"
+                  >UNVERIFIED</span
+                >
+                <h3 id="candidate-name">Unknown recruit</h3>
+                <strong id="candidate-headline">Awaiting enrichment</strong>
+                <p><span aria-hidden="true">⌖</span> <span id="candidate-location">—</span></p>
+                <small id="candidate-profile">Synthetic profiles only</small>
+              </div>
+            </section>
+
+            <blockquote class="candidate-message">
+              <span class="message-label">OBSERVED CANDIDATE CONTENT</span>
+              <p id="candidate-message">No candidate content observed yet.</p>
+            </blockquote>
+
+            <div class="authorization-path" aria-label="Privileged scheduling path">
+              <div class="identity-node">
+                <span>REQUESTING IDENTITY</span>
+                <strong id="gate-identity">—</strong>
+              </div>
+
+              <div id="pomerium-gate" class="pomerium-gate" data-state="ready">
+                <div class="gate-shield" aria-hidden="true"></div>
+                <div>
+                  <span>POMERIUM MCP GATE</span>
+                  <strong id="gate-state">READY</strong>
+                </div>
+                <i class="gate-beam" aria-hidden="true"></i>
+              </div>
+
+              <div id="calendar-card" class="calendar-card" data-state="locked">
+                <span class="calendar-icon" aria-hidden="true">▦</span>
+                <div>
+                  <span id="calendar-state">LOCKED</span>
+                  <strong id="calendar-title">No screening event</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="gate-proofline">
+              <span>TOOL <strong id="gate-tool">fillmore_schedule_screen</strong></span>
+              <span
+                >POLICY <strong id="gate-reason">Identity-aware policy is standing by</strong></span
+              >
+            </div>
+
+            <div id="outcome-banner" class="outcome-banner" data-state="ready">
+              WAITING FOR FIRST EVENT
+            </div>
+          </div>
+        </article>
+
+        <article class="lane white-lane" aria-labelledby="white-lane-title">
+          <header class="panel-header">
+            <div>
+              <span class="panel-kicker">WHITE LOOP</span>
+              <h2 id="white-lane-title">EVIDENCE RESEARCHER</h2>
+            </div>
+            <span class="lane-state">VERIFY & LEARN</span>
+          </header>
+
+          <div class="actor-stage white-stage">
+            <div class="sprite-aura" aria-hidden="true"></div>
+            <img
+              id="researcher-sprite"
+              class="game-sprite"
+              src="/assets/sprites/researcher/idle.png"
+              alt="8-bit verification researcher agent"
+            />
+            <div class="actor-copy">
+              <span class="actor-label">DIAGNOSIS</span>
+              <strong id="diagnosis-value">Waiting for an observable failure</strong>
+            </div>
+          </div>
+
+          <div class="integration-stack">
+            <section class="integration-card zero-card">
+              <span>ZERO CAPABILITY</span>
+              <strong id="zero-state">READY</strong>
+              <p id="zero-capability">Not selected</p>
+              <small>BUDGET <b id="zero-budget">3</b></small>
+            </section>
+            <section class="integration-card fillmore-card">
+              <span>FILLMORE PIPELINE</span>
+              <strong id="fillmore-state">WAITING</strong>
+              <p>Sandbox recruiting workflow</p>
+            </section>
+          </div>
+
+          <section class="evidence-card" aria-labelledby="evidence-title">
+            <h3 id="evidence-title"><span>◇</span> EVIDENCE</h3>
+            <ul id="evidence-list">
+              <li class="empty-row">No evidence assembled</li>
+            </ul>
+          </section>
+
+          <section class="memory-card white-memory-card" aria-labelledby="white-memory-title">
+            <h3 id="white-memory-title"><span>◆</span> DEFENSE MEMORY</h3>
+            <ul id="white-memory">
+              <li>No regression stored</li>
+            </ul>
+          </section>
+        </article>
+      </section>
+
+      <section class="console-dock" aria-label="Presenter controls and event trace">
+        <div class="trace-panel">
+          <div class="trace-title">
+            <span>EVENT TRACE</span>
+            <button id="show-proof-button" type="button" class="text-button">SHOW PROOF</button>
+          </div>
+          <ol id="event-trace" aria-label="Newest events first"></ol>
+        </div>
+
+        <div class="presenter-panel">
+          <div id="turn-rail" class="turn-rail" role="toolbar" aria-label="Replay timeline"></div>
+          <div class="presenter-controls">
+            <button id="restart-button" type="button">RESTART</button>
+            <button id="play-button" type="button" class="primary" aria-pressed="false">
+              PLAY
+            </button>
+            <button id="next-button" type="button" class="accent">NEXT EVENT</button>
+            <label for="speed-select">SPEED</label>
+            <select id="speed-select">
+              <option value="2400">STORY</option>
+              <option value="1400" selected>DEMO</option>
+              <option value="700">SPEED RUN</option>
+            </select>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <p id="live-status" class="sr-only" aria-live="polite">Press play to run the recruiting loop</p>
+
+    <dialog id="proof-dialog" class="proof-dialog" aria-labelledby="proof-title">
+      <div class="dialog-header">
+        <div>
+          <span class="panel-kicker">SANITIZED PROVENANCE</span>
+          <h2 id="proof-title">WHY SHOULD I BELIEVE THIS?</h2>
+        </div>
+        <button id="close-proof-button" type="button" aria-label="Close proof panel">×</button>
+      </div>
+      <p>
+        These correlation IDs connect the visible turn to Pomerium authorization, Zero capability
+        invocation, Fillmore operation, and the event hash. No credentials or raw candidate data
+        appear here.
+      </p>
+      <dl id="proof-list"></dl>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
