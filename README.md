@@ -29,12 +29,17 @@ The first slice intentionally contains contracts and scaffolding only. Target be
 
 ```bash
 npm ci
+npm run demo
 npm run typecheck
 npm run lint
 npm test
 npm run build
 docker compose config
 ```
+
+`npm run demo` starts the fixture-only arena at `http://127.0.0.1:4173/?autoplay=1`, opens it in
+the default browser, and automatically replays the complete sponsor-safe story. Set
+`DEMO_NO_OPEN=1` when running it in CI or another headless environment.
 
 ## Current status
 

@@ -59,6 +59,16 @@ The pipeline serves `public/` and launches the UI at:
 Fake and recorded presentation modes use the exact same reducer. The only thing that changes is the
 event source.
 
+For the rehearsable offline fallback, run:
+
+```bash
+npm run demo
+```
+
+This serves the bundled fixture and opens `/?autoplay=1`. It does not contact Zero, Pomerium,
+Fillmore, or the agent runtime. The pipeline branch should keep this fixture path available as a
+graceful demo fallback after it adds the live SSE route.
+
 ## Sequence recovery
 
 The reducer ignores duplicate sequences and pauses on a gap. When the pipeline branch lands, wire the

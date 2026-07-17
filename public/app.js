@@ -832,6 +832,7 @@ async function bootstrap() {
     const fixture = await new FixtureEventSource().load();
     events = fixture.events;
     render(state, manifest, events, handlers);
+    if (options.autoplay) play();
   }
 }
 

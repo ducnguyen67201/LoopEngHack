@@ -81,5 +81,6 @@ export function readLaunchOptions(search = globalThis.location?.search ?? '') {
   return {
     mode,
     episodeId: params.get('episode') ?? '',
+    autoplay: params.get('autoplay') === '1',
   };
 }
