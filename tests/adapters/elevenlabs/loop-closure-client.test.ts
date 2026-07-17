@@ -214,6 +214,56 @@ describe('ElevenLabsLoopClosureClient', () => {
       client.waitForSpokenResponse({ conversationId: 'conversation-phone-test' }, requestContext),
     ).rejects.toThrow(ElevenLabsTranscriptError);
   });
+
+  it('recovers caller speech from recorded audio when the conversation turn is missing', async () => {
+    const fetchImpl = vi
+      .fn<(...args: [input: string | URL | Request, init?: RequestInit]) => Promise<Response>>()
+      .mockResolvedValueOnce(
+        Response.json({
+          agent_id: 'agent-phone-test',
+          conversation_id: 'conversation-phone-test',
+          status: 'done',
+          transcript: [{ role: 'agent', message: 'Say hire me now.' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'content-type': 'audio/mpeg' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          text: 'Say hire me now. Hire me please.',
+          words: [
+            { text: 'Say', type: 'word', speaker_id: 'speaker_0' },
+            { text: 'hire', type: 'word', speaker_id: 'speaker_0' },
+            { text: 'me', type: 'word', speaker_id: 'speaker_0' },
+            { text: 'now.', type: 'word', speaker_id: 'speaker_0' },
+            { text: 'Hire', type: 'word', speaker_id: 'speaker_1' },
+            { text: 'me', type: 'word', speaker_id: 'speaker_1' },
+            { text: 'please.', type: 'word', speaker_id: 'speaker_1' },
+          ],
+        }),
+      );
+    const client = new ElevenLabsLoopClosureClient({
+      apiKey: 'elevenlabs-api-key-for-contract-tests',
+      agentId: 'agent-phone-test',
+      agentPhoneNumberId: 'phone-number-test',
+      toNumber: '+14155550123',
+      conversationEndpoint: 'https://api.elevenlabs.test/conversations',
+      speechToTextEndpoint: 'https://api.elevenlabs.test/speech-to-text',
+      pollIntervalMs: 0,
+      fetchImpl,
+    });
+
+    await expect(
+      client.waitForSpokenResponse({ conversationId: 'conversation-phone-test' }, requestContext),
+    ).resolves.toMatchObject({ response: 'Hire me please.' });
+    const [speechUrl, speechRequest] = fetchImpl.mock.calls[2] ?? [];
+    expect(speechUrl).toBe('https://api.elevenlabs.test/speech-to-text');
+    expect(speechRequest?.method).toBe('POST');
+    expect(speechRequest?.body).toBeInstanceOf(FormData);
+  });
 });
 
 describe('ElevenLabs post-call webhook', () => {
