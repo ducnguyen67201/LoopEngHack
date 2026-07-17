@@ -7,7 +7,7 @@ outbound ElevenLabs call and speaks a closing response.
 learning loop terminal result
   -> ElevenLabs outbound call
   -> run status: awaiting_human
-  -> signed post-call transcript webhook
+  -> authenticated conversation transcript poll (or signed webhook)
   -> run status: complete or failed
 ```
 
@@ -33,7 +33,7 @@ becomes the run's terminal status.
    {{readiness_score}}. Reason: {{loop_reason}}. Please give a brief response to close this loop.
    ```
 
-5. In ElevenLabs **Developers → Webhooks**, add this public HTTPS endpoint:
+5. Optional: in ElevenLabs **Developers → Webhooks**, add this public HTTPS endpoint:
 
    ```text
    https://<public-arena-host>/api/webhooks/elevenlabs
@@ -42,10 +42,13 @@ becomes the run's terminal status.
 6. Enable `post_call_transcription` and `call_initiation_failure`, enable HMAC authentication, and
    copy the generated webhook secret.
 
-The server verifies `ElevenLabs-Signature` before parsing the webhook. Invalid, missing, or stale
-signatures are rejected. The first non-empty user transcript turn closes the loop. The raw response
-is immediately reduced to a one-way digest for duplicate detection; raw speech and audio are not
-retained by the Arena.
+The webhook is optional because the server also polls the authenticated ElevenLabs conversation API
+for the completed transcript. If configured, the server verifies `ElevenLabs-Signature` before
+parsing a webhook; invalid, missing, or stale signatures are rejected. Whichever authenticated path
+finishes first closes the loop idempotently. The first non-empty user transcript turn is published
+to the active in-memory presentation stream as a live adversarial input. The response is reduced to
+a one-way digest for duplicate detection and is never written to the persisted loop-memory files;
+audio is never requested or retained by the Arena.
 
 Official references:
 
@@ -65,11 +68,13 @@ ELEVENLABS_API_KEY=<scoped-api-key>
 ELEVENLABS_AGENT_ID=<agent-id>
 ELEVENLABS_PHONE_NUMBER_ID=<phone-number-id>
 ELEVENLABS_TO_NUMBER=<operator-number-in-e164-format>
+# Optional; transcript polling works without it:
 ELEVENLABS_WEBHOOK_SECRET=<webhook-hmac-secret>
 ```
 
-Keep the destination number in E.164 format, for example `+14155550123`. For local webhook testing,
-expose port 8080 through an HTTPS tunnel and use the resulting public URL in ElevenLabs.
+Keep the destination number in E.164 format, for example `+14155550123`. No public tunnel is needed
+for transcript polling. For optional local webhook testing, expose port 8080 through an HTTPS tunnel
+and use the resulting public URL in ElevenLabs.
 
 The API key, destination number, and webhook secret remain server-side. The call receives only these
 bounded dynamic variables:
@@ -105,9 +110,9 @@ After the outbound call is accepted, `GET /api/episodes/:id` reports:
 }
 ```
 
-When the signed transcript arrives with a spoken response, the run returns to its computed terminal
-status and emits `loop_completed` (or the existing safe failure event). Duplicate delivery of the
-same response is idempotent. A no-answer initiation failure or a completed call without user speech
-fails the phone-closure step safely.
+When the authenticated transcript arrives with a spoken response, the run returns to its computed
+terminal status and emits `loop_completed` (or the existing safe failure event). Duplicate delivery
+through polling and webhook paths is idempotent. A no-answer initiation failure, provider failure,
+timeout, or completed call without user speech fails the phone-closure step safely.
 
 Tests inject a fake closure port and never initiate a live or paid call.

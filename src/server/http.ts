@@ -39,6 +39,12 @@ const startRequestSchema = z
   })
   .strict();
 
+const manualVoiceAttackSchema = z
+  .object({
+    transcript: z.string().trim().min(1).max(280),
+  })
+  .strict();
+
 export interface HttpAppOptions {
   runtime?: EpisodeRuntime;
   publicDirectory?: string;
@@ -203,6 +209,24 @@ export function createArenaApp(config: AppConfig, manager = new EpisodeManager(c
     });
   });
 
+  app.post('/api/episodes/:id/manual-voice-attack', (request, response, next) => {
+    try {
+      if (config.DEMO_MODE !== 'fake') {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const hub = manager.hub(request.params.id);
+      if (hub === null) {
+        response.status(404).json({ error: 'episode_not_found' });
+        return;
+      }
+      const input = manualVoiceAttackSchema.parse(request.body ?? {});
+      response.status(201).json({ event: hub.publishManualVoiceAttack(input.transcript) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   mountRecruitingMcp(app, config, manager);
 
   app.use('/fixtures', express.static(fixtureDirectory));
@@ -241,12 +265,15 @@ function mountElevenLabsWebhook(app: Express, config: AppConfig, manager: Episod
     '/api/webhooks/elevenlabs',
     express.raw({ type: 'application/json', limit: '256kb' }),
     (request, response) => {
-      if (!config.ELEVENLABS_LOOP_CLOSURE_ENABLED) {
+      if (
+        !config.ELEVENLABS_LOOP_CLOSURE_ENABLED ||
+        config.ELEVENLABS_WEBHOOK_SECRET === undefined
+      ) {
         response.status(404).json({ error: 'not_found' });
         return;
       }
       const rawBody: unknown = request.body;
-      if (!Buffer.isBuffer(rawBody) || config.ELEVENLABS_WEBHOOK_SECRET === undefined) {
+      if (!Buffer.isBuffer(rawBody)) {
         response.status(400).json({ error: 'invalid_webhook_payload' });
         return;
       }

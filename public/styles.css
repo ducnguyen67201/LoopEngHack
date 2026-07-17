@@ -1049,6 +1049,12 @@ select:focus-visible {
   background: var(--amber);
 }
 
+.presenter-controls button.danger {
+  border-color: #9f3840;
+  color: #fff3e1;
+  background: #6f2029;
+}
+
 .presenter-controls button:disabled {
   cursor: not-allowed;
   filter: grayscale(1);
@@ -1106,6 +1112,79 @@ select:focus-visible {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.6;
+}
+
+.call-dialog {
+  border-color: var(--red);
+}
+
+.call-form {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 18px;
+}
+
+.call-form label {
+  color: var(--amber);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.call-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  padding: 11px;
+  border: 2px solid var(--line-hot);
+  color: var(--cream);
+  background: #101e28;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.call-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.call-presets button,
+.call-submit {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 2px solid var(--line-hot);
+  color: var(--cream);
+  background: #162631;
+  font-size: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.call-submit {
+  border-color: var(--red);
+  background: #6f2029;
+}
+
+.call-submit:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.call-feedback {
+  min-height: 18px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.call-feedback[data-state='caught'] {
+  color: var(--green);
+}
+
+.call-feedback[data-state='error'] {
+  color: var(--red);
 }
 
 #proof-list {

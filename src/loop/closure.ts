@@ -16,6 +16,10 @@ export interface LoopClosureReceipt {
 
 export interface LoopClosurePort {
   requestClosure(context: LoopClosureContext): Promise<LoopClosureReceipt>;
+  waitForSpokenResponse?(
+    receipt: LoopClosureReceipt,
+    context: LoopClosureContext,
+  ): Promise<SpokenLoopClosure>;
 }
 
 export interface SpokenLoopClosure {

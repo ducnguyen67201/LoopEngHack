@@ -17,22 +17,22 @@ routes:
     mcp:
       server: {}
     policy:
-      allow:
-        or:
-          - user:
-              is: outbound-sourcer-service
-          - user:
-              is: hiring-controller-service
-      deny:
-        or:
-          - and:
-              - user:
-                  is: outbound-sourcer-service
-              - mcp_tool:
-                  is: recruiting_schedule_screen
-          - and:
-              - user:
-                  is: hiring-controller-service
-              - mcp_tool:
-                  not_in:
-                    - recruiting_schedule_screen
+      - allow:
+          or:
+            - user:
+                is: outbound-sourcer-service
+            - user:
+                is: hiring-controller-service
+      - deny:
+          and:
+            - user:
+                is: outbound-sourcer-service
+            - mcp_tool:
+                is: recruiting_schedule_screen
+      - deny:
+          and:
+            - user:
+                is: hiring-controller-service
+            - mcp_tool:
+                not_in:
+                  - recruiting_schedule_screen

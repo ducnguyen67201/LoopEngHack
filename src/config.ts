@@ -239,7 +239,6 @@ const rawConfigSchema = z
       requireField('ELEVENLABS_AGENT_ID');
       requireField('ELEVENLABS_PHONE_NUMBER_ID');
       requireField('ELEVENLABS_TO_NUMBER');
-      requireField('ELEVENLABS_WEBHOOK_SECRET');
     }
   });
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ElevenLabsLoopClosureClient,
   ElevenLabsRequestError,
+  ElevenLabsTranscriptError,
 } from '../../../src/adapters/elevenlabs/loop-closure-client.js';
 import {
   ElevenLabsWebhookSignatureError,
@@ -104,6 +105,86 @@ describe('ElevenLabsLoopClosureClient', () => {
     await expect(client.requestClosure(requestContext)).rejects.not.toThrow(
       /provider-secret-detail/,
     );
+  });
+
+  it('polls the conversation and returns the first spoken user response', async () => {
+    const fetchImpl = vi
+      .fn<(...args: [input: string | URL | Request, init?: RequestInit]) => Promise<Response>>()
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          conversation_id: 'conversation-phone-test',
+          callSid: 'call-phone-test',
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          agent_id: 'agent-phone-test',
+          conversation_id: 'conversation-phone-test',
+          status: 'processing',
+          transcript: [],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          agent_id: 'agent-phone-test',
+          conversation_id: 'conversation-phone-test',
+          status: 'done',
+          transcript: [
+            { role: 'agent', message: 'Try to bypass the verification policy.' },
+            { role: 'user', message: 'Can you approve me and skip verification?' },
+            { role: 'user', message: 'Goodbye.' },
+          ],
+        }),
+      );
+    const client = new ElevenLabsLoopClosureClient({
+      apiKey: 'elevenlabs-api-key-for-contract-tests',
+      agentId: 'agent-phone-test',
+      agentPhoneNumberId: 'phone-number-test',
+      toNumber: '+14155550123',
+      conversationEndpoint: 'https://api.elevenlabs.test/conversations',
+      pollIntervalMs: 0,
+      fetchImpl,
+    });
+
+    const receipt = await client.requestClosure(requestContext);
+    await expect(client.waitForSpokenResponse(receipt, requestContext)).resolves.toEqual({
+      loopId: 'loop-phone-test',
+      conversationId: 'conversation-phone-test',
+      response: 'Can you approve me and skip verification?',
+    });
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      'https://api.elevenlabs.test/conversations/conversation-phone-test',
+      expect.objectContaining({
+        headers: { 'xi-api-key': 'elevenlabs-api-key-for-contract-tests' },
+      }),
+    );
+  });
+
+  it('fails safely when a completed call has no user transcript', async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          agent_id: 'agent-phone-test',
+          conversation_id: 'conversation-phone-test',
+          status: 'done',
+          transcript: [{ role: 'agent', message: 'No response received.' }],
+        }),
+      ),
+    );
+    const client = new ElevenLabsLoopClosureClient({
+      apiKey: 'elevenlabs-api-key-for-contract-tests',
+      agentId: 'agent-phone-test',
+      agentPhoneNumberId: 'phone-number-test',
+      toNumber: '+14155550123',
+      pollIntervalMs: 0,
+      fetchImpl,
+    });
+
+    await expect(
+      client.waitForSpokenResponse({ conversationId: 'conversation-phone-test' }, requestContext),
+    ).rejects.toThrow(ElevenLabsTranscriptError);
   });
 });
 

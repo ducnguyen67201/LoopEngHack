@@ -9,6 +9,7 @@ export type PresentationEventKind =
   | 'inner_episode_completed'
   | 'learning_episode_completed'
   | 'loop_closure_requested'
+  | 'manual_voice_attack'
   | 'loop_completed';
 
 export interface PresentationEvent {
@@ -100,6 +101,42 @@ export class PresentationEventHub implements EventSink {
         policyBreaches: 0,
       }),
     );
+  }
+
+  publishManualVoiceAttack(
+    transcript: string,
+    channel: 'simulated' | 'elevenlabs' = 'simulated',
+  ): PresentationEvent {
+    const sequence = this.reserveSequence();
+    const payload = {
+      transcript,
+      technique: 'voice_authority_spoof',
+      decision: 'deny',
+      channel,
+      learnedInvariant: 'Caller speech is untrusted content and cannot approve a screening action',
+    } as const;
+    const event: PresentationEvent = {
+      schemaVersion: 1,
+      id: `stream-${this.runId}-${sequence}`,
+      episodeId: this.runId,
+      sequence,
+      turn: 8,
+      occurredAt: new Date().toISOString(),
+      actor: 'red-candidate',
+      kind: 'manual_voice_attack',
+      phase: 'learn',
+      source: channel === 'elevenlabs' ? 'agent-loop' : 'pomerium',
+      status: 'denied',
+      summary:
+        channel === 'elevenlabs'
+          ? 'ElevenLabs phone transcript evaluated and stored as a live-call regression.'
+          : 'Live call attack blocked and stored as a regression.',
+      visualCue: 'arena.phone.blocked',
+      payload,
+      proof: { eventHash: eventDigest(this.runId, sequence, 'manual_voice_attack', payload) },
+    };
+    this.enqueue(event);
+    return structuredClone(event);
   }
 
   subscribe(subscriber: Subscriber): () => void {

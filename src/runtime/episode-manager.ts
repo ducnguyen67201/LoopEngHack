@@ -217,7 +217,8 @@ export class EpisodeManager {
           return result;
         }
 
-        const receipt = await this.closurePort.requestClosure(loopClosureContext(id, result));
+        const closureContext = loopClosureContext(id, result);
+        const receipt = await this.closurePort.requestClosure(closureContext);
         record.closure = {
           status: 'awaiting_response',
           conversationId: receipt.conversationId,
@@ -227,6 +228,20 @@ export class EpisodeManager {
         };
         record.status = 'awaiting_human';
         hub.publishClosureRequested(receipt.conversationId);
+        if (this.closurePort.waitForSpokenResponse !== undefined) {
+          void this.closurePort
+            .waitForSpokenResponse(receipt, closureContext)
+            .then((spoken) => this.closeWithSpokenResponse(spoken))
+            .catch((error: unknown) => {
+              const reason =
+                error instanceof Error ? error.message : 'phone transcript polling failed';
+              try {
+                this.failLoopClosure(receipt.conversationId, reason);
+              } catch {
+                // A signed webhook may have closed the same conversation first.
+              }
+            });
+        }
         return result;
       })
       .catch((error: unknown) => {
@@ -281,6 +296,7 @@ export class EpisodeManager {
     };
     record.status = record.terminalResult.status;
     record.reason = record.terminalResult.reason;
+    record.hub.publishManualVoiceAttack(input.response, 'elevenlabs');
     record.hub.publishTerminal(record.terminalResult);
     return this.snapshot(record);
   }

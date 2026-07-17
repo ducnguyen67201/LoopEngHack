@@ -29,6 +29,7 @@ export const KNOWN_EVENT_KINDS = new Set([
   'inner_episode_completed',
   'learning_episode_completed',
   'loop_closure_requested',
+  'manual_voice_attack',
   'loop_completed',
   'error',
 ]);
@@ -166,6 +167,9 @@ function appendEvidence(evidence, item) {
 }
 
 function sourceForEvent(event) {
+  if (event.kind === 'manual_voice_attack') {
+    return event.source === 'agent-loop' ? 'agent-loop' : 'pomerium';
+  }
   if (event.kind === 'policy_decision') return 'pomerium';
   if (['zero_capability_discovered', 'verification_completed'].includes(event.kind)) return 'zero';
   if (
@@ -189,6 +193,7 @@ function statusForEvent(event) {
     return event.payload.decision === 'allow' ? 'allowed' : 'denied';
   }
   if (event.kind === 'replay_result' && event.payload.blocked === true) return 'denied';
+  if (event.kind === 'manual_voice_attack') return 'denied';
   return 'completed';
 }
 
@@ -545,6 +550,44 @@ export function reducePresentation(state, event) {
         outcome: payload.blocked === true ? 'MUTATED REPLAY BLOCKED' : 'REPLAY BYPASSED DEFENSE',
       };
       break;
+    case 'manual_voice_attack':
+      next = {
+        ...next,
+        episodeStatus: state.episodeStatus,
+        red: {
+          ...state.red,
+          sprite: 'blocked',
+          technique: payload.technique ?? 'voice_authority_spoof',
+          memory: ['Live voice attack blocked', ...state.red.memory].slice(0, 3),
+        },
+        candidate: {
+          ...state.candidate,
+          message: `${payload.channel === 'elevenlabs' ? 'ELEVENLABS PHONE TRANSCRIPT' : 'CALL TRANSCRIPT'}: “${payload.transcript ?? event.summary}”`,
+          status: 'claim-mismatch',
+        },
+        researcher: {
+          ...state.researcher,
+          sprite: 'success',
+          diagnosis: 'Caller speech is untrusted content, not approval evidence.',
+          memory: [
+            `Stored live-call regression: ${payload.learnedInvariant ?? 'voice cannot authorize screening'}`,
+            ...state.researcher.memory,
+          ].slice(0, 3),
+        },
+        gate: {
+          ...state.gate,
+          state: 'denied',
+          identity: 'live-operator-call',
+          reason: 'Untrusted caller speech cannot authorize recruiting_schedule_screen.',
+        },
+        metrics: {
+          ...state.metrics,
+          redFlags: state.metrics.redFlags + 1,
+          whiteSaves: state.metrics.whiteSaves + 1,
+        },
+        outcome: 'LIVE CALL ATTACK CAUGHT • REGRESSION LEARNED',
+      };
+      break;
     case 'inner_episode_completed':
       next = {
         ...next,
@@ -893,6 +936,10 @@ async function bootstrap() {
   const restartButton = requireElement('restart-button');
   const speedSelect = requireElement('speed-select');
   const proofDialog = requireElement('proof-dialog');
+  const callDialog = requireElement('call-dialog');
+  const callTranscript = requireElement('manual-call-transcript');
+  const callFeedback = requireElement('call-feedback');
+  const submitCallButton = requireElement('submit-call-button');
 
   const handlers = {
     select(sequence) {
@@ -1000,6 +1047,46 @@ async function bootstrap() {
   });
   requireElement('show-proof-button').addEventListener('click', () => proofDialog.showModal());
   requireElement('close-proof-button').addEventListener('click', () => proofDialog.close());
+  requireElement('open-call-button').addEventListener('click', () => callDialog.showModal());
+  requireElement('close-call-button').addEventListener('click', () => callDialog.close());
+  for (const preset of document.querySelectorAll('[data-call-preset]')) {
+    preset.addEventListener('click', () => {
+      callTranscript.value = preset.dataset.callPreset ?? callTranscript.value;
+      callTranscript.focus();
+    });
+  }
+  submitCallButton.addEventListener('click', async (submitEvent) => {
+    submitEvent.preventDefault();
+    if (!liveEpisodeId) {
+      callFeedback.dataset.state = 'error';
+      callFeedback.textContent = 'Start the live demo before simulating the call.';
+      return;
+    }
+    submitCallButton.disabled = true;
+    callFeedback.dataset.state = '';
+    callFeedback.textContent = 'Evaluating caller speech against the learned policy…';
+    try {
+      const response = await fetch(
+        `/api/episodes/${encodeURIComponent(liveEpisodeId)}/manual-voice-attack`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: callTranscript.value }),
+        },
+      );
+      if (!response.ok) throw new Error(`Call simulation failed with ${response.status}`);
+      const body = await response.json();
+      applyEvent(body.event);
+      callFeedback.dataset.state = 'caught';
+      callFeedback.textContent =
+        'CAUGHT — denied with no side effect and stored as a new regression.';
+    } catch (error) {
+      callFeedback.dataset.state = 'error';
+      callFeedback.textContent = error instanceof Error ? error.message : 'Call simulation failed.';
+    } finally {
+      submitCallButton.disabled = false;
+    }
+  });
 
   if (options.mode === 'live') {
     playButton.disabled = true;

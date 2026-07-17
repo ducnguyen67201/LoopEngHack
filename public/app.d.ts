@@ -17,6 +17,7 @@ export interface GameEvent extends Omit<
     | 'inner_episode_completed'
     | 'learning_episode_completed'
     | 'loop_closure_requested'
+    | 'manual_voice_attack'
     | 'loop_completed';
   payload: Readonly<Record<string, unknown>>;
   visualCue: string;

@@ -133,7 +133,7 @@ describe('readConfig', () => {
     expect(config.ELEVENLABS_API_KEY).toBe('elevenlabs-api-key-for-contract-tests');
   });
 
-  it('requires complete phone and webhook configuration when loop closure is enabled', () => {
+  it('requires complete phone configuration when loop closure is enabled', () => {
     expect(() =>
       readConfig({
         ELEVENLABS_LOOP_CLOSURE_ENABLED: 'true',
@@ -141,20 +141,20 @@ describe('readConfig', () => {
       }),
     ).toThrow(/INTERNAL_AGENT_TOKEN is required/);
 
-    expect(
-      readConfig({
-        ELEVENLABS_LOOP_CLOSURE_ENABLED: 'true',
-        INTERNAL_AGENT_TOKEN: 'operator-token-at-least-24-characters',
-        ELEVENLABS_API_KEY: 'elevenlabs-api-key-for-contract-tests',
-        ELEVENLABS_AGENT_ID: 'agent-phone-test',
-        ELEVENLABS_PHONE_NUMBER_ID: 'phone-number-test',
-        ELEVENLABS_TO_NUMBER: '+14155550123',
-        ELEVENLABS_WEBHOOK_SECRET: 'elevenlabs-webhook-secret-for-tests',
-      }),
-    ).toMatchObject({
+    const phoneConfig = readConfig({
+      ELEVENLABS_LOOP_CLOSURE_ENABLED: 'true',
+      INTERNAL_AGENT_TOKEN: 'operator-token-at-least-24-characters',
+      ELEVENLABS_API_KEY: 'elevenlabs-api-key-for-contract-tests',
+      ELEVENLABS_AGENT_ID: 'agent-phone-test',
+      ELEVENLABS_PHONE_NUMBER_ID: 'phone-number-test',
+      ELEVENLABS_TO_NUMBER: '+14155550123',
+    });
+
+    expect(phoneConfig).toMatchObject({
       ELEVENLABS_LOOP_CLOSURE_ENABLED: true,
       ELEVENLABS_TO_NUMBER: '+14155550123',
     });
+    expect(phoneConfig.ELEVENLABS_WEBHOOK_SECRET).toBeUndefined();
   });
 });
 
